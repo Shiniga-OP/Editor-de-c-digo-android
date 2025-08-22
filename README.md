@@ -16,9 +16,9 @@ Assembly (Aarch64 linux)
 
 ```Java
 new Sintaxe.Java().aplicar(editText);
-new AutoComplete(activity, editText, AutoComplete.sintaxe("java"));
+new AutoCompletar(activity, editText, AutoCompletar.sintaxe("java"));
 
 // ou
 
-new AutoComplete(activity, editText, "palavras", "chave", "para", "sugestoes");
-````
+new AutoCompletar(activity, editText, "palavras", "chave", "para", "sugestoes");
+```
