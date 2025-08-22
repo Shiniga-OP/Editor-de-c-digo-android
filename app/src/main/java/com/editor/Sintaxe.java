@@ -199,7 +199,7 @@ public class Sintaxe {
 					for(int i = 0; i < contadorTabs; i++) sb.append('\t');
 					int fim = pos - 1;
 					while(fim >= 0 && (s.charAt(fim) == '\t' || s.charAt(fim) == ' ')) fim--;
-					boolean abre = fim >= 0 && s.charAt(fim) == '{';
+					boolean abre = fim >= 0 && (s.charAt(fim) == '{' || s.charAt(fim) == ':');
 					if(abre) sb.append('\t');
 					String indent = sb.toString();
 					s.insert(pos + 1, indent);
@@ -398,5 +398,79 @@ public class Sintaxe {
 				editor.setSelection(selecaoComeco, selecaoFinal);
 			}
 		}
+	}
+    
+    public static class ASMArm64 extends Sintaxe {
+        @Override
+        public void destacarSintaxe(EditText editor) {
+            Editable e = editor.getText();
+            if(e == null) return;
+
+            int selecaoComeco = editor.getSelectionStart();
+            int selecaoFinal = editor.getSelectionEnd();
+
+            limparSpans(e);
+
+            String texto = e.toString();
+
+            // azul escuro
+            destacarPalavra(e, texto, "text", "#3F51B5");
+            destacarPalavra(e, texto, "data", "#3F51B5");
+            destacarPalavra(e, texto, "rodata", "#3F51B5");
+            destacarPalavra(e, texto, "asciz", "#3F51B5");
+            destacarPalavra(e, texto, "byte", "#3F51B5");
+            destacarPalavra(e, texto, "bss", "#3F51B5");
+            destacarPalavra(e, texto, "word", "#3F51B5");
+            destacarPalavra(e, texto, "align", "#3F51B5");
+            destacarPalavra(e, texto, "include", "#3F51B5");
+            // verde claro
+            destacarPalavra(e, texto, "svc", "#98FB98");
+            // rosa claro
+            destacarPalavra(e, texto, "ret", "#FF69B4");
+            // vermelho
+            destacarPalavra(e, texto, "global", "#FF0000");
+            destacarPalavra(e, texto, "section", "#FF0000");
+            // rosa forte
+            destacarNumeros(e, texto, "#FF1493");
+            destacarPalavra(e, texto, "x0", "#FF1493");
+            destacarPalavra(e, texto, "x1", "#FF1493");
+            destacarPalavra(e, texto, "x2", "#FF1493");
+            destacarPalavra(e, texto, "x3", "#FF1493");
+            destacarPalavra(e, texto, "x4", "#FF1493");
+            destacarPalavra(e, texto, "x5", "#FF1493");
+            destacarPalavra(e, texto, "x6", "#FF1493");
+            destacarPalavra(e, texto, "x7", "#FF1493");
+            destacarPalavra(e, texto, "x8", "#FF1493");
+            destacarPalavra(e, texto, "x9", "#FF1493");
+            destacarPalavra(e, texto, "x10", "#FF1493");
+            destacarPalavra(e, texto, "x11", "#FF1493");
+            destacarPalavra(e, texto, "x12", "#FF1493");
+            // azul claro
+            destacarPalavra(e, texto, "mov", "#64B5F6");
+            destacarPalavra(e, texto, "ldr", "#64B5F6");
+            destacarPalavra(e, texto, "cmp", "#64B5F6");
+            destacarPalavra(e, texto, "cmn", "#64B5F6");
+            destacarPalavra(e, texto, "sub", "#64B5F6");
+            destacarPalavra(e, texto, "add", "#64B5F6");
+            destacarPalavra(e, texto, "mul", "#64B5F6");
+            destacarPalavra(e, texto, "udiv", "#64B5F6");
+            destacarPalavra(e, texto, "sdiv", "#64B5F6");
+            destacarPalavra(e, texto, "str", "#64B5F6");
+            destacarPalavra(e, texto, "b", "#64B5F6");
+            destacarPalavra(e, texto, "bl", "#64B5F6");
+            destacarPalavra(e, texto, "str", "#64B5F6");
+            // bege
+            // destacarPalavra(e, texto, "_", "#F4A460");
+            // cinza
+            destacarComentarios(e, texto);
+            // verde
+            destacarAspas(e, texto, "#66BB6A");
+            destacarAspasSim(e, texto, "#66BB6A");
+            destacarAspasEs(e, texto, "#66BB6A");
+
+            if(selecaoComeco >= 0 && selecaoFinal >= 0 && selecaoComeco <= e.length() && selecaoFinal <= e.length()) {
+                editor.setSelection(selecaoComeco, selecaoFinal);
+            }
+        }
 	}
 }
