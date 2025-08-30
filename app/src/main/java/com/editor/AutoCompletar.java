@@ -23,23 +23,38 @@ import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import android.widget.Button;
 import android.widget.Toast;
+import android.view.*;
+import android.os.*;
+import android.graphics.*;
+import android.graphics.drawable.*;
 
 public class AutoCompletar {    
     public final Activity activity;    
     public final EditText editText;    
-    public final String[] palavras;    
-    public final List<String> sugestoes = new ArrayList<>();    
+    public final Sugestao[] palavras;    
+    public final List<Sugestao> sugestoes = new ArrayList<>();    
     public final PopupWindow popup;    
     public final LinearLayout layout;    
     public static boolean autocomplete = false;
-    public final HashSet<String> palavrasDoc = new HashSet<>();
+    public final HashSet<Sugestao> palavrasDoc = new HashSet<>();
+	
+	public static class Sugestao {
+		public String codigo, tipo;
+		public CharSequence[] args;
+		
+		public Sugestao(String codigo, String tipo, CharSequence... args) {
+			this.codigo = codigo;
+			this.tipo = tipo;
+			this.args = args;
+		}
+	}
 
-    public AutoCompletar(Activity act, EditText et, String... lista) {    
+    public AutoCompletar(Activity act, EditText et, Sugestao... lista) {    
         activity = act;    
         editText = et;    
         palavras = lista;    
 
-        for(String palavra : palavras) palavrasDoc.add(palavra);
+        for(Sugestao palavra : palavras) palavrasDoc.add(palavra);
 
         editText.addTextChangedListener(new olhadorSintaxe(editText));    
         layout = new LinearLayout(activity);    
@@ -49,7 +64,7 @@ public class AutoCompletar {
         ScrollView sugs = new ScrollView(activity);    
         sugs.addView(layout);    
 
-        popup = new PopupWindow(sugs, 550, 200);    
+        popup = new PopupWindow(sugs, editText.getWidth(), 300);    
         popup.setBackgroundDrawable(new ColorDrawable(Color.LTGRAY));    
         popup.setOutsideTouchable(true);    
         popup.setFocusable(false);    
@@ -68,53 +83,127 @@ public class AutoCompletar {
     public void coletarPalavrasDoDoc(String texto) {
         Pattern p = Pattern.compile("\\b[a-zA-Z_][a-zA-Z0-9_]*\\b");
         Matcher m = p.matcher(texto);
-
         while(m.find()) {
-            String palavra = m.group();
-            if(!palavrasDoc.contains(palavra) && palavra.length() > 1) palavrasDoc.add(palavra);
+            Sugestao palavra = new Sugestao(m.group(), "vazio", "vazio");
+            if(!palavrasDoc.contains(palavra) && palavra.codigo.length() > 1) palavrasDoc.add(palavra);
         }
     }
 
-    public void mostrarSugestoes(String token) {    
-        sugestoes.clear();    
-        layout.removeAllViews();    
-        if(token.length() == 0) {    
-            popup.dismiss();    
-            return;    
-        }    
-        List<String> suges = new ArrayList<String>();    
-        for(String p : palavrasDoc) {    
-            if(p.toLowerCase().startsWith(token.toLowerCase())) suges.add(p);    
-        }
-        if(suges.isEmpty()) {
-            for(String p : palavras) {    
-                if(p.toLowerCase().startsWith(token.toLowerCase())) suges.add(p);    
-            }
-        }
-        if(suges.isEmpty()) {    
-            popup.dismiss();    
-            return;    
-        }    
+	public Drawable itemSugs() {
+		GradientDrawable normal = new GradientDrawable();
+		normal.setColor(0xFFFAFAFA); // cinza muito claro
+		normal.setCornerRadius(6);
 
-        for(final String s : suges) {    
-            TextView t = new TextView(activity);    
-            sugestoes.add(s);    
-            t.setText(s);    
-            t.setPadding(20, 10, 20, 10);    
-            t.setTextSize(16);    
-            t.setTextColor(Color.BLACK);    
-            t.setBackgroundColor(0xFFE0E0E0);    
-            t.setOnClickListener(new View.OnClickListener() {    
-                    @Override public void onClick(View v) {    
-                        substituirToken(s);    
-                        popup.dismiss();    
-                        editText.requestFocus();    
-                        InputMethodManager em = (InputMethodManager) activity.getSystemService(Activity.INPUT_METHOD_SERVICE);    
-                        em.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT);    
-                    }    
-                });    
-            layout.addView(t);    
-        }    
+		GradientDrawable tocado = new GradientDrawable();
+		tocado.setColor(0xFFE3F2FD); // azul claro
+		tocado.setCornerRadius(6);
+
+		StateListDrawable estados = new StateListDrawable();
+		estados.addState(new int[]{android.R.attr.state_pressed}, tocado);
+		estados.addState(new int[]{}, normal);
+
+		return estados;
+	}
+
+	public int corPorTipo(String tipo) {
+		switch(tipo != null ? tipo : "vazio") {
+			case "Metodo": return 0xFF1976D2; // azul
+			case "PalavraChave": return 0xFFD32F2F; // vermelho
+			case "Tipo": return 0xFF388E3C; // verde
+			case "Anotacao": return 0xFF7B1FA2; // roxo
+			case "Classe": return 0xFFF57C00; // laranja
+			case "Condicional": return 0xFF0288D1; // azul claro
+			case "Bloco": return 0xFF5D4037; // marrom
+			default: return 0xFF616161; // cinza escuro
+		}
+	}
+
+    public void mostrarSugestoes(String token) {    
+		sugestoes.clear();    
+		layout.removeAllViews();    
+		if(token.length() == 0) {    
+			popup.dismiss();    
+			return;    
+		}    
+		List<Sugestao> suges = new ArrayList<>();    
+		for(Sugestao p : palavrasDoc) {    
+			if(p.codigo.toLowerCase().startsWith(token.toLowerCase())) suges.add(p);    
+		}
+		if(suges.isEmpty()) {
+			for(Sugestao p : palavras) {    
+				if(p.codigo.toLowerCase().startsWith(token.toLowerCase())) suges.add(p);    
+			}
+		}
+		if(suges.isEmpty()) {    
+			popup.dismiss();    
+			return;    
+		}    
+		for(final Sugestao s : suges) {
+			LinearLayout itemLayout = new LinearLayout(activity);
+			itemLayout.setOrientation(LinearLayout.HORIZONTAL);
+			itemLayout.setPadding(30, 20, 30, 20);
+			itemLayout.setBackground(itemSugs());
+			itemLayout.setGravity(Gravity.CENTER_VERTICAL);
+
+			View icone = new View(activity);
+			LinearLayout.LayoutParams iconeArgs = new LinearLayout.LayoutParams(16, 16);
+			iconeArgs.setMargins(0, 0, 20, 0);
+			icone.setLayoutParams(iconeArgs);
+			icone.setBackgroundColor(corPorTipo(s.tipo));
+			GradientDrawable circulo = new GradientDrawable();
+			circulo.setShape(GradientDrawable.OVAL);
+			circulo.setColor(corPorTipo(s.tipo));
+			icone.setBackground(circulo);
+			itemLayout.addView(icone);
+
+			TextView t = new TextView(activity);    
+			sugestoes.add(s);    
+			t.setText(s.codigo);
+			t.setTextSize(16);
+			t.setTextColor(0xFF212121);
+			t.setTypeface(t.getTypeface(), Typeface.BOLD);
+			
+			if(s.args != null) {
+				TextView argsView = new TextView(activity);
+				String args = "(";
+				for(int i = 0; i < s.args.length; i++) {
+					if(i < s.args.length - 1) args += s.args[i] + ", ";
+					else args += s.args[i];
+				}
+				argsView.setText(args + ")");
+				argsView.setTextSize(12);
+				argsView.setTextColor(0xFF757575); // cinza
+				argsView.setPadding(10, 0, 0, 0);
+
+				LinearLayout txtLayout = new LinearLayout(activity);
+				txtLayout.setOrientation(LinearLayout.HORIZONTAL);
+				txtLayout.addView(t);
+				txtLayout.addView(argsView);
+
+				itemLayout.addView(txtLayout);
+			} else itemLayout.addView(t);
+			itemLayout.setOnClickListener(new View.OnClickListener() {    
+					@Override public void onClick(View v) {    
+						v.setBackgroundColor(0xFFBBDEFB);
+						new Handler().postDelayed(new Runnable() {
+								@Override
+								public void run() {
+									substituirToken(s.codigo);    
+									popup.dismiss();    
+									editText.requestFocus();    
+									InputMethodManager em = (InputMethodManager) activity.getSystemService(Activity.INPUT_METHOD_SERVICE);    
+									em.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT);    
+								}
+							}, 100);
+					}    
+				});    
+			layout.addView(itemLayout);    
+			View divisor = new View(activity);
+			divisor.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1));
+			divisor.setBackgroundColor(0xFFEEEEEE);
+			layout.addView(divisor);
+		}    
+		if(layout.getChildCount() > 0) layout.removeViewAt(layout.getChildCount() - 1);
 
         int antes = editText.getSelectionStart();    
         Layout layout = editText.getLayout();    
@@ -247,85 +336,6 @@ public class AutoCompletar {
 		}
 	}
 
-    public static String[] sintaxe(String linguagem) {    
-        if(linguagem.equals("java")) {    
-            return new String[]{    
-                "System.out.println(", "System.gc();", "Toast.makeText(",    
-                "while(", "if(", "for(", "switch(", "try {\n\n\n} catch(Exception e) {\nSystem.out.println(\"erro: \"+e);\n}",     
-                ".replace(", ".split(", ".trim()", ".toString()", "setContentView(", ".setText(", ".getText()",    
-
-                "public", "private", "protected", "static", "class", "void", "final",    
-
-                "int", "String", "double", "float", "byte", "short", "Integer", "long", "char", "boolean",    
-                "final",
-
-                "import", "package", "new", "return", "case", "break;", "continue;", "else", "this",    
-
-                "@Override", "@JavascriptInterface", "@Deprecated", "@Target", "@TargetApi",    
-
-                "WebView", "EditText", "TextView", "Button", "GLSurfaceView", "SurfaceView",    
-                "Canvas", "Toast", "View", "MediaPlayer", "RuntimeException", "Exception",    
-                "InputStream", "OutputStream", "PrintStream"    
-            };    
-        } else if(linguagem.equals("JS")) {    
-            return new String[]{    
-                "console.log(", "console.error(", "console.table(", "fetch(", ".addEventListener(", ".replace(",    
-                ".trim()", ".split(",  "while(", "for(", "switch(", "if(",     
-                ".getElementById(", ".forEach(", "Math.random(", "Math.cos(", "Math.sin(",    
-
-                "let", "const", "var",    
-
-                "class", "static", "function", "import",    
-
-                "=>", "return", "new", "else", "case", "break", "of", "in",    
-
-                "document", "window", "Image", "Audio", "console",    
-                "Math"    
-            };    
-        } else if(linguagem.equals("C")) {    
-            return new String[]{    
-                "int", "short", "long", "double", "byte", "size_t", "const",
-                "bool",
-
-                "#include", "#define", "#ifndef", "#undef", "#endif",
-                "#if", "#else",
-
-                "<stdio.h>", "<math.h>", "<memory.h>", "<string.h>",
-                "<stdlib.h>", "<ctype.h>",
-
-                "struct", "typedef", "enum", "static",
-
-                "printf(", "malloc(", "free(",
-
-                "if(", "while(", "for(", "switch(", "case", "break;", "else"
-            };    
-        } else if(linguagem.equals("FP")) {    
-            return new String[]{    
-                "log(", "se(", "enq(", "por(", "FPexec(",    
-                "mAleatorio()", "mPI()", "mCos(", "mSen(", "mAbs(",    
-                "lerArquivo(", "gravarArquivo(", "execArquivo(", "obExterno()",    
-
-                "classe", "novo", "este", "senao", "func",    
-
-                "var", "Tex", "Dobro", "Int", "Flutu", "Bool"    
-            };    
-        } else if(linguagem.equals("asm-arm64")) {    
-            return new String[]{    
-                "mov", "ldr", "str", "add", "sub", "mul", "udiv", "sdiv", "strb",
-                "and", "orr", "eor", "lsl", "lsr", "asr", "cmp", "cmn",    
-                "b", "bl", "ret", "cbz", "cbnz", "b.eq", "b.ne", "b.lt", "b.gt",    
-
-                "sp", "pc",    
-
-                ".text", ".data", ".rodata", ".bss", ".global", ".section", ".align", ".asciz", ".word", ".byte",    
-                ".space",    
-
-                "adr", "adrp", "nop", "svc"    
-            };    
-        }    
-        return new String[]{"desconhecida"};    
-    }    
-
     public class olhadorSintaxe implements TextWatcher {    
         public final EditText editor;    
         public boolean processando = false;    
@@ -366,7 +376,7 @@ public class AutoCompletar {
                               txt.charAt(i) == '\n'
                         )) i--;
                         int tokenI = i + 1;
-                        String nova = sugestoes.get(0);
+                        String nova = sugestoes.get(0).codigo;
                         txt.replace(tokenI, pos, nova);
                         pos = tokenI + nova.length();
                         editor.setSelection(pos + 1);
@@ -399,4 +409,217 @@ public class AutoCompletar {
             processando = false;
         }    
     }    
+	
+	public static Sugestao[] sintaxe(String linguagem) {    
+		if(linguagem.equals("java")) {
+			return new Sugestao[]{
+				new Sugestao("System.out.println(", "Metodo", "Object"),
+				new Sugestao("System.gc();", "Metodo", "void"),
+				new Sugestao("Toast.makeText", "Metodo", "Activity", "String", "int"),
+				new Sugestao("while(", "condicional", "boolean"),
+				new Sugestao("if(", "condicional", "boolean"),
+				new Sugestao("for(", "condicional", "Object, boolean, Object"),
+				new Sugestao("switch(", "condicional", "Object"),
+				new Sugestao("try {\n\n\n} catch(Exception e) {\nSystem.out.println(\"erro: \"+e);\n}", "bloco"),
+				new Sugestao(".replace(", "Metodo", "String", "String"),
+				new Sugestao(".split(", "Metodo", "String"),
+				new Sugestao(".trim()", "Metodo", "void"),
+				new Sugestao(".toString()", "Metodo", "void"),
+				new Sugestao("setContentView(", "Metodo", "int"),
+				new Sugestao(".setText(", "Metodo", "String"),
+				new Sugestao(".getText()", "Metodo", "void"),
+				new Sugestao("public", "palavraChave"),
+				new Sugestao("private", "palavraChave"),
+				new Sugestao("protected", "palavraChave"),
+				new Sugestao("static", "palavraChave"),
+				new Sugestao("class", "palavraChave"),
+				new Sugestao("void", "palavraChave"),
+				new Sugestao("final", "palavraChave"),
+				new Sugestao("int", "tipo"),
+				new Sugestao("String", "tipo"),
+				new Sugestao("double", "tipo"),
+				new Sugestao("float", "tipo"),
+				new Sugestao("byte", "tipo"),
+				new Sugestao("short", "tipo"),
+				new Sugestao("Integer", "tipo"),
+				new Sugestao("long", "tipo"),
+				new Sugestao("char", "tipo"),
+				new Sugestao("boolean", "tipo"),
+				new Sugestao("import", "palavraChave"),
+				new Sugestao("package", "palavraChave"),
+				new Sugestao("new", "palavraChave"),
+				new Sugestao("return", "palavraChave"),
+				new Sugestao("case", "palavraChave"),
+				new Sugestao("break;", "palavraChave"),
+				new Sugestao("continue;", "palavraChave"),
+				new Sugestao("else", "palavraChave"),
+				new Sugestao("this", "palavraChave"),
+				new Sugestao("@Override", "anotacao"),
+				new Sugestao("@JavascriptInterface", "anotacao"),
+				new Sugestao("@Deprecated", "anotacao"),
+				new Sugestao("@Target", "anotacao"),
+				new Sugestao("@TargetApi", "anotacao"),
+				new Sugestao("WebView", "Classe", "Activity"),
+				new Sugestao("EditText", "Classe", "Activity"),
+				new Sugestao("TextView", "Classe", "Activity"),
+				new Sugestao("Button", "Classe", "Activity"),
+				new Sugestao("GLSurfaceView", "Classe", "Activity"),
+				new Sugestao("SurfaceView", "Classe", "activity"),
+				new Sugestao("Canvas", "Classe", "Activity"),
+				new Sugestao("Toast", "Classe", "void"),
+				new Sugestao("View", "Classe", "Activity"),
+				new Sugestao("MediaPlayer", "Classe", "Activity"),
+				new Sugestao("RuntimeException", "Classe", "void"),
+				new Sugestao("Exception", "Classe", "void"),
+				new Sugestao("InputStream", "Classe", "void"),
+				new Sugestao("OutputStream", "Classe", "void"),
+				new Sugestao("PrintStream", "Classe", "void")
+			};
+		}
+		if(linguagem.equals("JS")) {    
+            return new Sugestao[]{
+				new Sugestao("console.log(", "Metodo", "Object"),
+				new Sugestao("console.clear();", "Metodo", "void"),
+				new Sugestao("Math.random(", "int"),
+				new Sugestao("while(", "Condicional", "boolean"),
+				new Sugestao("if(", "Condicional", "boolean"),
+				new Sugestao("for(", "Condicional", "Object, boolean, Object"),
+				new Sugestao("switch(", "Condicional", "Object"),
+				new Sugestao("try {\n\n\n} catch(e) {\nconsole.log(\"erro: \"+e);\n}", "void"),
+				new Sugestao(".replace(", "Metodo", "String", "String"),
+				new Sugestao(".split(", "Metodo", "String"),
+				new Sugestao(".trim()", "Metodo", "void"),
+				new Sugestao("static", "PalavraChave"),
+				new Sugestao("class", "PalavraChave"),
+				new Sugestao("const", "Tipo"),
+				new Sugestao("let", "Tipo"),
+				new Sugestao("var", "Tipo"),
+				new Sugestao("import", "PalavraChave"),
+				new Sugestao("new", "PalavraChave"),
+				new Sugestao("return", "PalavraChave"),
+				new Sugestao("case", "PalavraChave"),
+				new Sugestao("break;", "PalavraChave"),
+				new Sugestao("continue;", "PalavraChave"),
+				new Sugestao("else", "PalavraChave"),
+				new Sugestao("this", "PalavraChave"),
+				new Sugestao("Image", "Classe", "void"),
+				new Sugestao("document", "Classe", "void"),
+				new Sugestao("Audio", "Classe", "String"),
+				new Sugestao("Array", "Classe", "int"),
+				new Sugestao("Float32Array", "Classe", "int"),
+				new Sugestao("window", "Classe", "Activity")
+			};    
+        }
+		if(linguagem.equals("C")) {    
+            return new Sugestao[]{
+				new Sugestao("printf(", "função", "String", "Object"),
+				new Sugestao("malloc(", "função", "int"),
+				new Sugestao("free(", "função", "Object"),
+				new Sugestao("while(", "Condicional", "boolean"),
+				new Sugestao("if(", "Condicional", "boolean"),
+				new Sugestao("for(", "Condicional", "Object, boolean, Object"),
+				new Sugestao("switch(", "Condicional", "Object"),
+				new Sugestao("static", "PalavraChave"),
+				new Sugestao("const", "PalavraChave"),
+				new Sugestao("short", "Tipo"),
+				new Sugestao("int", "Tipo"),
+				new Sugestao("byte", "Tipo"),
+				new Sugestao("long", "Tipo"),
+				new Sugestao("float", "Tipo"),
+				new Sugestao("FILE", "Tipo"),
+				new Sugestao("bool", "Tipo"),
+				new Sugestao("#include", "PalavraChave"),
+				new Sugestao("#define", "PalavraChave"),
+				new Sugestao("#if", "PalavraChave"),
+				new Sugestao("#ifdef", "PalavraChave"),
+				new Sugestao("#end", "PalavraChave"),
+				new Sugestao("#undef", "PalavraChave"),
+				new Sugestao("return", "PalavraChave"),
+				new Sugestao("case", "PalavraChave"),
+				new Sugestao("break;", "PalavraChave"),
+				new Sugestao("continue;", "PalavraChave"),
+				new Sugestao("else", "PalavraChave"),
+				new Sugestao("struct", "PalavraChave"),
+				new Sugestao("typedef", "PalavraChave"),
+				new Sugestao("enum", "PalavraChave"),
+			};    
+        }
+		if(linguagem.equals("FP")) {
+			return new Sugestao[]{
+				new Sugestao("log(", "Metodo", "Objeto"),
+				new Sugestao("se(", "Condicional", "booleano"),
+				new Sugestao("enq()", "Condicional", "booleano"),
+				new Sugestao("por(", "Condicional", "Objeto, booleano, Objeto"),
+				new Sugestao("Int", "Tipo"),
+				new Sugestao("Tex", "Tipo"),
+				new Sugestao("Bool", "Tipo"),
+				new Sugestao("Flutu", "Tipo"),
+				new Sugestao("Dobro", "Tipo"),
+				new Sugestao("var", "Tipo"),
+				new Sugestao("#incluir", "PalavraChave"),
+				new Sugestao("func", "PalavraChave"),
+				new Sugestao("classe", "PalavraChave"),
+				new Sugestao("novo", "PalavraChave"),
+				new Sugestao("Este", "PalavraChave"),
+				new Sugestao("mPI()", "Metodo", "vazio"),
+				new Sugestao("mCos(", "Metodo", "Flutu"),
+				new Sugestao("mSen(", "Metodo", "Flutu"),
+				new Sugestao("mAbs(", "Metodo", "Flutu"),
+				new Sugestao("mAleatorio()", "Metodo", "vazio"),
+				new Sugestao("gravarArquivo(", "Metodo", "Tex", "Tex"),
+				new Sugestao("lerArquivo(", "Metodo", "Tex"),
+				new Sugestao("obExterno()", "Metodo", "vazio"),
+				new Sugestao("execArquivo(", "Metodo", "Tex"),
+				new Sugestao("FPexec(", "Metodo", "Tex"),
+			};    
+        }
+		if(linguagem.equals("asm-arm64")) {    
+			return new Sugestao[]{
+				new Sugestao("mov", "instrucao", "registrador, registrador/valor"),
+				new Sugestao("ldr", "instrucao", "registrador, [endereço]"),
+				new Sugestao("str", "instrucao", "registrador, [endereço]"),
+				new Sugestao("add", "instrucao", "registrador, registrador, registrador/valor"),
+				new Sugestao("sub", "instrucao", "registrador, registrador, registrador/valor"),
+				new Sugestao("mul", "instrucao", "registrador, registrador, registrador"),
+				new Sugestao("udiv", "instrucao", "registrador, registrador, registrador"),
+				new Sugestao("sdiv", "instrucao", "registrador, registrador, registrador"),
+				new Sugestao("strb", "instrucao", "registrador, [endereço]"),
+				new Sugestao("and", "instrucao", "registrador, registrador, registrador/valor"),
+				new Sugestao("orr", "instrucao", "registrador, registrador, registrador/valor"),
+				new Sugestao("eor", "instrucao", "registrador, registrador, registrador/valor"),
+				new Sugestao("lsl", "instrucao", "registrador, registrador, registrador/valor"),
+				new Sugestao("lsr", "instrucao", "registrador, registrador, registrador/valor"),
+				new Sugestao("asr", "instrucao", "registrador, registrador, registrador/valor"),
+				new Sugestao("cmp", "instrucao", "registrador, registrador/valor"),
+				new Sugestao("cmn", "instrucao", "registrador, registrador/valor"),
+				new Sugestao("b", "instrucao", "rótulo"),
+				new Sugestao("bl", "instrucao", "rótulo"),
+				new Sugestao("ret", "instrucao", ""),
+				new Sugestao("cbz", "instrucao", "registrador, rótulo"),
+				new Sugestao("cbnz", "instrucao", "registrador, rótulo"),
+				new Sugestao("b.eq", "instrucao", "rótulo"),
+				new Sugestao("b.ne", "instrucao", "rótulo"),
+				new Sugestao("b.lt", "instrucao", "rótulo"),
+				new Sugestao("b.gt", "instrucao", "rótulo"),
+				new Sugestao("sp", "registrador", ""),
+				new Sugestao("pc", "registrador", ""),
+				new Sugestao(".text", "diretiva", ""),
+				new Sugestao(".data", "diretiva", ""),
+				new Sugestao(".rodata", "diretiva", ""),
+				new Sugestao(".bss", "diretiva", ""),
+				new Sugestao(".global", "diretiva", "símbolo"),
+				new Sugestao(".section", "diretiva", "nome"),
+				new Sugestao(".align", "diretiva", "valor"),
+				new Sugestao(".asciz", "diretiva", "string"),
+				new Sugestao(".word", "diretiva", "valor"),
+				new Sugestao(".byte", "diretiva", "valor"),
+				new Sugestao(".space", "diretiva", "tamanho"),
+				new Sugestao("adr", "instrucao", "registrador, rótulo"),
+				new Sugestao("adrp", "instrucao", "registrador, rótulo"),
+				new Sugestao("nop", "instrucao", ""),
+				new Sugestao("svc", "instrucao", "valor")
+			};
+		}    
+        return new Sugestao[0];    
+    }
 }
