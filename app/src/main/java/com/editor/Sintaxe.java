@@ -11,8 +11,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import android.text.Spanned;
 import android.graphics.Typeface;
-import android.view.*;
-import android.util.*;
+import android.view.MotionEvent;
+import android.view.View;
+import android.util.TypedValue;
 
 public class Sintaxe {
     public final HashSet<String> PALAVRAS_NAO_FUNCOES = new HashSet<>();
@@ -25,7 +26,7 @@ public class Sintaxe {
 		editor.setTypeface(Typeface.MONOSPACE);
 		editor.setLineSpacing(7, 1.1f);
 	}
-	
+
     public void destacarSintaxe(EditText editor) {}
 
     public static void destacarComentarios(Spannable span, String txt, String cor) {
@@ -80,7 +81,7 @@ public class Sintaxe {
             );
         }
     }
-	
+
 	public static void destacarSimbolo(Spannable s, String texto, String simbolo, String cor) {
 		Pattern p = Pattern.compile(Pattern.quote(simbolo));
 		Matcher m = p.matcher(texto);
@@ -93,7 +94,7 @@ public class Sintaxe {
 			);
 		}
 	}
-	
+
 	public static void destacarIncludes(Spannable s, String texto, String cor) {
 		Pattern p = Pattern.compile("<\\s*[^\\s<>]+\\.h\\s*>");
 		Matcher m = p.matcher(texto);
@@ -213,7 +214,7 @@ public class Sintaxe {
             );
         }
     }
-	
+
 	public class Zoom implements View.OnTouchListener {
 		public float disInicial = 0f;
 		public float tamTxtInicial = 0f;
@@ -280,7 +281,7 @@ public class Sintaxe {
 			processando = false;
 		}
 	}
-	
+
 	public static class FP extends Sintaxe {
 		public FP() {
 			PALAVRAS_NAO_FUNCOES.add("log");
@@ -343,7 +344,7 @@ public class Sintaxe {
 			}
 		}
 	}
-	
+
 	public static class Java extends Sintaxe {
 		public Java() {
 			PALAVRAS_NAO_FUNCOES.add("while");
@@ -412,7 +413,7 @@ public class Sintaxe {
 			}
 		}
 	}
-	
+
 	public static class JS extends Sintaxe {
 		public JS() {
 			PALAVRAS_NAO_FUNCOES.add("for");
@@ -477,7 +478,7 @@ public class Sintaxe {
 			}
 		}
 	}
-    
+
     public static class ASMArm64 extends Sintaxe {
         @Override
         public void destacarSintaxe(EditText editor) {
@@ -540,7 +541,7 @@ public class Sintaxe {
             if(selecaoComeco >= 0 && selecaoFinal >= 0) editor.setSelection(selecaoComeco, selecaoFinal);
         }
     }
-	
+
 	public static class C extends Sintaxe {
 		public C() {
 			PALAVRAS_NAO_FUNCOES.add("while");
@@ -601,3 +602,4 @@ public class Sintaxe {
         }
     }
 }
+

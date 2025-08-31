@@ -23,10 +23,12 @@ import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import android.widget.Button;
 import android.widget.Toast;
-import android.view.*;
-import android.os.*;
-import android.graphics.*;
-import android.graphics.drawable.*;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.StateListDrawable;
+import android.graphics.Typeface;
+import android.os.Handler;
+import android.view.ViewGroup;
 
 public class AutoCompletar {    
     public final Activity activity;    
