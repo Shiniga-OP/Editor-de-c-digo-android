@@ -2,219 +2,172 @@ package com.editor;
 
 import android.graphics.Color;
 import android.text.Editable;
-import android.text.Spannable;
-import android.text.TextWatcher;
-import android.text.style.ForegroundColorSpan;
-import android.widget.EditText;
+import android.os.Handler;
 import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import android.text.Spanned;
 import android.graphics.Typeface;
 import android.view.MotionEvent;
 import android.view.View;
 import android.util.TypedValue;
+import java.util.ArrayList;
+import java.util.List;
+import com.editor.EditorCodigo.Destaque;
 
-public class Sintaxe {
+abstract public class Sintaxe {
     public final HashSet<String> PALAVRAS_NAO_FUNCOES = new HashSet<>();
-    public static final long DELAY_MILLIS = 300;
+    public static final long DELAY_MILLIS = 100;
+    public EditorCodigo editor;
+    public final Handler loop = new Handler();
+	public final Runnable destaqueRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if(editor != null) {
+                String texto = editor.obterTexto();
+                List<Destaque> destaques = calcularDestaques(texto);
+                editor.setDestaques(destaques);
+            }
+        }
+    };
 
-	public void aplicar(final EditText editor) {
-		editor.addTextChangedListener(new olhadorSintaxe(editor));
-		editor.setOnTouchListener(new Zoom());
-		destacarSintaxe(editor);
-		editor.setTypeface(Typeface.MONOSPACE);
-		editor.setLineSpacing(7, 1.1f);
+	public void aplicar(final EditorCodigo editor) {
+		this.editor = editor;
+		editor.sintaxe = this;
+		List<EditorCodigo.Destaque> destaques = calcularDestaques(editor.obterTexto());
+		editor.setDestaques(destaques);
 	}
 
-    public void destacarSintaxe(EditText editor) {}
+    public void att() {
+        loop.removeCallbacks(destaqueRunnable);
+        loop.postDelayed(destaqueRunnable, DELAY_MILLIS);
+    }
 
-    public static void destacarComentarios(Spannable span, String txt, String cor) {
+    public List<EditorCodigo.Destaque> calcularDestaques(String texto) {
+        List<EditorCodigo.Destaque> destaques = new ArrayList<>();
+        aplicarDestaques(destaques, texto);
+        return destaques;
+    }
+
+    protected abstract void aplicarDestaques(List<EditorCodigo.Destaque> destaques, String texto);
+
+    public static void destacarComentarios(List<EditorCodigo.Destaque> destaques, String txt, String cor) {
+        int corInt = Color.parseColor(cor);
         Pattern p1 = Pattern.compile("//.*?$", Pattern.MULTILINE);
         Matcher m1 = p1.matcher(txt);
-        while(m1.find()) {
-            span.setSpan(
-                new ForegroundColorSpan(Color.parseColor(cor)),
-                m1.start(), m1.end(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            );
-        }
+        while(m1.find()) destaques.add(new EditorCodigo.Destaque(m1.start(), m1.end(), corInt));
+        
         Pattern p2 = Pattern.compile("/\\*(.|\\n)*?\\*/");
         Matcher m2 = p2.matcher(txt);
-        while(m2.find()) {
-            span.setSpan(
-                new ForegroundColorSpan(Color.parseColor(cor)),
-                m2.start(),
-                m2.end(),
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            );
-        }
+        while(m2.find()) destaques.add(new EditorCodigo.Destaque(m2.start(), m2.end(), corInt));
     }
 
-	public static void destacarNumeros(Spannable span, String txt, String cor) {
-		Pattern p = Pattern.compile("(?<!\\w)(-?\\d+(\\.\\d+)?)(?!\\w)");
-		Matcher m = p.matcher(txt);
-		while(m.find()) {
-			span.setSpan(
-				new ForegroundColorSpan(Color.parseColor(cor)),
-				m.start(), m.end(),
-				Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-			);
-		}
-	}
-
-    public static void limparSpans(Editable e) {
-        ForegroundColorSpan[] spans = e.getSpans(0, e.length(), ForegroundColorSpan.class);
-        for(ForegroundColorSpan span : spans) {
-            e.removeSpan(span);
-        }
+    public static void destacarNumeros(List<EditorCodigo.Destaque> destaques, String txt, String cor) {
+        int corInt = Color.parseColor(cor);
+        Pattern p = Pattern.compile("(?<!\\w)(-?\\d+(\\.\\d+)?)(?!\\w)");
+        Matcher m = p.matcher(txt);
+        while(m.find()) destaques.add(new EditorCodigo.Destaque(m.start(), m.end(), corInt));
     }
 
-    public static void destacarPalavra(Spannable s, String texto, String palavra, String cor) {
+    public static void destacarPalavra(List<EditorCodigo.Destaque> destaques, String texto, String palavra, String cor) {
+        int corInt = Color.parseColor(cor);
         Pattern p = Pattern.compile("\\b" + palavra + "\\b");
         Matcher m = p.matcher(texto);
-        while(m.find()) {
-            s.setSpan(
-                new ForegroundColorSpan(Color.parseColor(cor)),
-                m.start(),
-                m.end(),
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            );
+        while(m.find()) destaques.add(new EditorCodigo.Destaque(m.start(), m.end(), corInt));
+    }
+
+    public static void destacarSimbolo(List<EditorCodigo.Destaque> destaques, String texto, String simbolo, String cor) {
+        int corInt = Color.parseColor(cor);
+        Pattern p = Pattern.compile(Pattern.quote(simbolo));
+        Matcher m = p.matcher(texto);
+        while (m.find()) {
+            destaques.add(new EditorCodigo.Destaque(m.start(), m.end(), corInt));
         }
     }
 
-	public static void destacarSimbolo(Spannable s, String texto, String simbolo, String cor) {
-		Pattern p = Pattern.compile(Pattern.quote(simbolo));
-		Matcher m = p.matcher(texto);
-		while(m.find()) {
-			s.setSpan(
-				new ForegroundColorSpan(Color.parseColor(cor)),
-				m.start(),
-				m.end(),
-				Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-			);
-		}
-	}
+    public static void destacarIncludes(List<EditorCodigo.Destaque> destaques, String texto, String cor) {
+        int corInt = Color.parseColor(cor);
+        Pattern p = Pattern.compile("<\\s*[^\\s<>]+\\.h\\s*>");
+        Matcher m = p.matcher(texto);
+        while(m.find()) destaques.add(new EditorCodigo.Destaque(m.start(), m.end(), corInt));
+    }
 
-	public static void destacarIncludes(Spannable s, String texto, String cor) {
-		Pattern p = Pattern.compile("<\\s*[^\\s<>]+\\.h\\s*>");
-		Matcher m = p.matcher(texto);
-		while(m.find()) {
-			s.setSpan(
-				new ForegroundColorSpan(Color.parseColor(cor)),
-				m.start(),
-				m.end(),
-				Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-			);
-		}
-	}
+    public static void destacarAspas(List<EditorCodigo.Destaque> destaques, String texto, String cor) {
+        int corInt = Color.parseColor(cor);
+        int tam = texto.length();
+        int ultimoIndice = 0;
+        while(ultimoIndice < tam) {
+            int inicio = texto.indexOf('"', ultimoIndice);
+            if(inicio == -1) break;
+            if(eEscapado(texto, inicio)) {
+                ultimoIndice = inicio + 1;
+                continue;
+            }
+            int fim = inicio + 1;
+            boolean fimAchado = false;
+            while(fim < tam && !fimAchado) {
+                fim = texto.indexOf('"', fim);
+                if(fim == -1) break;
+                if(!eEscapado(texto, fim)) fimAchado = true;
+                else fim++;
+            }
+            if(fimAchado) {
+                destaques.add(new EditorCodigo.Destaque(inicio, fim + 1, corInt));
+                ultimoIndice = fim + 1;
+            } else break;
+        }
+        ultimoIndice = 0;
+        while(ultimoIndice < tam) {
+            int inicio = texto.indexOf('\'', ultimoIndice);
+            if(inicio == -1) break;
+            if(eEscapado(texto, inicio)) {
+                ultimoIndice = inicio + 1;
+                continue;
+            }
+            int fim = inicio + 1;
+            boolean fimAchado = false;
+            while(fim < tam && !fimAchado) {
+                fim = texto.indexOf('\'', fim);
+                if(fim == -1) break;
+                if(!eEscapado(texto, fim)) fimAchado = true;
+                else fim++;
+            }
+            if(fimAchado) {
+                destaques.add(new EditorCodigo.Destaque(inicio, fim + 1, corInt));
+                ultimoIndice = fim + 1;
+            } else break;
+        }
+    }
 
-	public static void destacarAspas(Spannable s, String texto, String cor) {
-		int tam = texto.length();
-		int ultimoIndice = 0;
-		// aspas duplas
-		while(ultimoIndice < tam) {
-			int inicio = texto.indexOf('"', ultimoIndice);
-			if(inicio == -1) break;
-			if(eEscapado(texto, inicio)) {
-				ultimoIndice = inicio + 1;
-				continue;
-			}
-			int fim = inicio + 1;
-			boolean fimAchado = false;
+    public static boolean eEscapado(String txt, int pos) {
+        if(pos <= 0) return false;
+        int conta = 0;
+        int i = pos - 1;
+        while(i >= 0 && txt.charAt(i) == '\\') {
+            conta++;
+            i--;
+        }
+        return (conta % 2) == 1;
+    }
 
-			while(fim < tam && !fimAchado) {
-				fim = texto.indexOf('"', fim);
-				if(fim == -1) break;
-
-				if(!eEscapado(texto, fim)) fimAchado = true;
-				else fim++;
-			}
-			if(fimAchado) {
-				s.setSpan(
-					new ForegroundColorSpan(Color.parseColor(cor)),
-					inicio,
-					fim + 1,
-					Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-				);
-				ultimoIndice = fim + 1;
-			} else break;
-		}
-		ultimoIndice = 0;
-		// aspas simples:
-		while(ultimoIndice < tam) {
-			int inicio = texto.indexOf('\'', ultimoIndice);
-			if(inicio == -1) break;
-
-			if(eEscapado(texto, inicio)) {
-				ultimoIndice = inicio + 1;
-				continue;
-			}
-			int fim = inicio + 1;
-			boolean fimAchado = false;
-
-			while(fim < tam && !fimAchado) {
-				fim = texto.indexOf('\'', fim);
-				if(fim == -1) break;
-
-				if(!eEscapado(texto, fim)) fimAchado = true;
-				else fim++;
-			}
-
-			if(fimAchado) {
-				s.setSpan(
-					new ForegroundColorSpan(Color.parseColor(cor)),
-					inicio,
-					fim + 1,
-					Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-				ultimoIndice = fim + 1;
-			} else {
-				break;
-			}
-		}
-	}
-
-	public static boolean eEscapado(String txt, int pos) {
-		if(pos <= 0) return false;
-
-		int conta = 0;
-		int i = pos - 1;
-
-		while(i >= 0 && txt.charAt(i) == '\\') {
-			conta++;
-			i--;
-		}
-		return (conta % 2) == 1;
-	}
-
-    public void destacarFuncoes(Spannable s, String texto, String cor) {
+    public void destacarFuncoes(List<EditorCodigo.Destaque> destaques, String texto, String cor) {
+        int corInt = Color.parseColor(cor);
         Pattern p = Pattern.compile("\\b(\\w+)\\s*\\(");
         Matcher m = p.matcher(texto);
         while(m.find()) {
             String nomeFuncao = m.group(1);
-            if(!PALAVRAS_NAO_FUNCOES.contains(nomeFuncao)) {
-                s.setSpan(
-                    new ForegroundColorSpan(Color.parseColor(cor)),
-                    m.start(1),
-                    m.end(1),
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                );
-            }
+            if(!PALAVRAS_NAO_FUNCOES.contains(nomeFuncao)) destaques.add(new EditorCodigo.Destaque(m.start(1), m.end(1), corInt));
         }
     }
 
-    public static void destacarProximaPalavra(Spannable s, String texto, String palavraChave, String cor) {
+    public static void destacarProximaPalavra(List<EditorCodigo.Destaque> destaques, String texto, String palavraChave, String cor) {
+        int corInt = Color.parseColor(cor);
         Pattern p = Pattern.compile("\\b" + palavraChave + "\\s+(\\w+)\\b");
         Matcher m = p.matcher(texto);
-        while(m.find()) {
-            s.setSpan(
-                new ForegroundColorSpan(Color.parseColor(cor)),
-                m.start(1),
-                m.end(1),
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            );
-        }
+        while(m.find()) destaques.add(new EditorCodigo.Destaque(m.start(1), m.end(1), corInt));
     }
 
+    // ... (rest das classes internas FP, Java, JS, ASMArm64, C) permanece igua
+/*
 	public class Zoom implements View.OnTouchListener {
 		public float disInicial = 0f;
 		public float tamTxtInicial = 0f;
@@ -246,6 +199,7 @@ public class Sintaxe {
 			return (float) Math.sqrt(x * x + y * y);
 		}
 	}
+	
     public class olhadorSintaxe implements TextWatcher {
 		public final EditText editor;
 		public final Runnable tarefaDestaque = new Runnable() {
@@ -281,27 +235,11 @@ public class Sintaxe {
 			processando = false;
 		}
 	}
-
+*/
 	public static class FP extends Sintaxe {
-		public FP() {
-			PALAVRAS_NAO_FUNCOES.add("log");
-			PALAVRAS_NAO_FUNCOES.add("se");
-			PALAVRAS_NAO_FUNCOES.add("por");
-			PALAVRAS_NAO_FUNCOES.add("enq");
-		}
 
 		@Override
-		public void destacarSintaxe(EditText editor) {
-			Editable e = editor.getText();
-			if(e == null) return;
-
-			int selecaoComeco = editor.getSelectionStart();
-			int selecaoFinal = editor.getSelectionEnd();
-
-			limparSpans(e);
-
-			String texto = e.toString();
-
+		protected void aplicarDestaques(List<EditorCodigo.Destaque> e, String texto) {
 			// azul escuro
 			destacarPalavra(e, texto, "func", "#3F51B5");
 			destacarPalavra(e, texto, "incluir", "#3F51B5");
@@ -338,33 +276,20 @@ public class Sintaxe {
 			destacarProximaPalavra(e, texto, "classe", "#66BB6A");
 			destacarProximaPalavra(e, texto, "novo", "#66BB6A");
 			destacarAspas(e, texto, "#66BB6A");
+		}
 
-			if(selecaoComeco >= 0 && selecaoFinal >= 0 && selecaoComeco <= e.length() && selecaoFinal <= e.length()) {
-				editor.setSelection(selecaoComeco, selecaoFinal);
-			}
+		public FP() {
+			PALAVRAS_NAO_FUNCOES.add("log");
+			PALAVRAS_NAO_FUNCOES.add("se");
+			PALAVRAS_NAO_FUNCOES.add("por");
+			PALAVRAS_NAO_FUNCOES.add("enq");
 		}
 	}
 
 	public static class Java extends Sintaxe {
-		public Java() {
-			PALAVRAS_NAO_FUNCOES.add("while");
-			PALAVRAS_NAO_FUNCOES.add("if");
-			PALAVRAS_NAO_FUNCOES.add("for");
-			PALAVRAS_NAO_FUNCOES.add("switch");
-		}
 
 		@Override
-		public void destacarSintaxe(EditText editor) {
-			Editable e = editor.getText();
-			if(e == null) return;
-
-			int selecaoComeco = editor.getSelectionStart();
-			int selecaoFinal = editor.getSelectionEnd();
-
-			limparSpans(e);
-
-			String texto = e.toString();
-
+		protected void aplicarDestaques(List<EditorCodigo.Destaque> e, String texto) {
 			// azul escuro
 			destacarPalavra(e, texto, "public", "#3F51B5");
 			destacarPalavra(e, texto, "private", "#3F51B5");
@@ -407,33 +332,20 @@ public class Sintaxe {
 			destacarProximaPalavra(e, texto, "class", "#66BB6A"); 
 			destacarProximaPalavra(e, texto, "new", "#66BB6A");
 			destacarAspas(e, texto, "#66BB6A");
-
-			if(selecaoComeco >= 0 && selecaoFinal >= 0 && selecaoComeco <= e.length() && selecaoFinal <= e.length()) {
-				editor.setSelection(selecaoComeco, selecaoFinal);
-			}
+		}
+		
+		public Java() {
+			PALAVRAS_NAO_FUNCOES.add("while");
+			PALAVRAS_NAO_FUNCOES.add("if");
+			PALAVRAS_NAO_FUNCOES.add("for");
+			PALAVRAS_NAO_FUNCOES.add("switch");
 		}
 	}
 
 	public static class JS extends Sintaxe {
-		public JS() {
-			PALAVRAS_NAO_FUNCOES.add("for");
-			PALAVRAS_NAO_FUNCOES.add("if");
-			PALAVRAS_NAO_FUNCOES.add("switch");
-			PALAVRAS_NAO_FUNCOES.add("while");
-		}
 
 		@Override
-		public void destacarSintaxe(EditText editor) {
-			Editable e = editor.getText();
-			if(e == null) return;
-
-			int selecaoComeco = editor.getSelectionStart();
-			int selecaoFinal = editor.getSelectionEnd();
-
-			limparSpans(e);
-
-			String texto = e.toString();
-
+		protected void aplicarDestaques(List<EditorCodigo.Destaque> e, String texto) {
 			// azul escuro
 			destacarPalavra(e, texto, "function", "#3F51B5");
 			destacarPalavra(e, texto, "class", "#64B5F6");
@@ -472,25 +384,21 @@ public class Sintaxe {
 			destacarProximaPalavra(e, texto, "class", "#66BB6A");
 			destacarProximaPalavra(e, texto, "new", "#66BB6A");
 			destacarAspas(e, texto, "#66BB6A");
-
-			if(selecaoComeco >= 0 && selecaoFinal >= 0 && selecaoComeco <= e.length() && selecaoFinal <= e.length()) {
-				editor.setSelection(selecaoComeco, selecaoFinal);
-			}
+		}
+		
+		public JS() {
+			PALAVRAS_NAO_FUNCOES.add("for");
+			PALAVRAS_NAO_FUNCOES.add("if");
+			PALAVRAS_NAO_FUNCOES.add("switch");
+			PALAVRAS_NAO_FUNCOES.add("while");
 		}
 	}
 
     public static class ASMArm64 extends Sintaxe {
-        @Override
-        public void destacarSintaxe(EditText editor) {
-            Editable e = editor.getText();
-            if(e == null) return;
 
-            int selecaoComeco = editor.getSelectionStart();
-            int selecaoFinal = editor.getSelectionEnd();
-
-            limparSpans(e);
-            String texto = e.toString();
-            // azul escuro
+		@Override
+		protected void aplicarDestaques(List<EditorCodigo.Destaque> e, String texto) {
+			// azul escuro
             destacarPalavra(e, texto, "text", "#3F51B5");
             destacarPalavra(e, texto, "data", "#3F51B5");
             destacarPalavra(e, texto, "rodata", "#3F51B5");
@@ -517,12 +425,11 @@ public class Sintaxe {
             Pattern registroPattern = Pattern.compile("\\b([wx][0-9]{1,2})\\b");
             Matcher mReg = registroPattern.matcher(texto);
             while(mReg.find()) {
-                e.setSpan(
-                    new ForegroundColorSpan(Color.parseColor("#FF1493")),
-                    mReg.start(),
+                e.add(
+				new EditorCodigo.Destaque(
+					mReg.start(),
                     mReg.end(),
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                );
+					Color.parseColor("#FF1493")));
             }
             destacarPalavra(e, texto, "ret", "#FF69B4");
             // rosa
@@ -538,28 +445,14 @@ public class Sintaxe {
             destacarPalavra(e, texto, "svc", "#98FB98");
             // verde
             destacarAspas(e, texto, "#66BB6A");
-            if(selecaoComeco >= 0 && selecaoFinal >= 0) editor.setSelection(selecaoComeco, selecaoFinal);
-        }
+		}
     }
 
 	public static class C extends Sintaxe {
-		public C() {
-			PALAVRAS_NAO_FUNCOES.add("while");
-			PALAVRAS_NAO_FUNCOES.add("if");
-			PALAVRAS_NAO_FUNCOES.add("for");
-			PALAVRAS_NAO_FUNCOES.add("switch");
-		}
-        @Override
-        public void destacarSintaxe(EditText editor) {
-            Editable e = editor.getText();
-            if(e == null) return;
 
-            int selecaoComeco = editor.getSelectionStart();
-            int selecaoFinal = editor.getSelectionEnd();
-
-            limparSpans(e);
-            String texto = e.toString();
-            // azul escuro
+		@Override
+		protected void aplicarDestaques(List<EditorCodigo.Destaque> e, String texto) {
+			// azul escuro
 			destacarSimbolo(e, texto, "#include", "#3F51B5");
 			destacarSimbolo(e, texto, "#define", "#3F51B5");
 			destacarSimbolo(e, texto, "#if", "#3F51B5");
@@ -598,8 +491,14 @@ public class Sintaxe {
 			for(int i = 0; i < simbs.length; i++) destacarSimbolo(e, texto, simbs[i], "#9E9E9E");
             // verde
             destacarAspas(e, texto, "#66BB6A");
-            if(selecaoComeco >= 0 && selecaoFinal >= 0) editor.setSelection(selecaoComeco, selecaoFinal);
-        }
+		}
+		
+		public C() {
+			PALAVRAS_NAO_FUNCOES.add("while");
+			PALAVRAS_NAO_FUNCOES.add("if");
+			PALAVRAS_NAO_FUNCOES.add("for");
+			PALAVRAS_NAO_FUNCOES.add("switch");
+		}
     }
 }
 

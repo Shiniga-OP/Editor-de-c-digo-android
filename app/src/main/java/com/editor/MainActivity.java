@@ -26,6 +26,7 @@ public class MainActivity extends Activity {
         super.onCreate(s);
         setContentView(R.layout.activity_main);
 		editor = findViewById(R.id.editor);
+		new Sintaxe.C().aplicar(editor);
 		/*
         new Sintaxe.C().aplicar(editor);
 		new AutoCompletar(this, editor, AutoCompletar.sintaxe("C")); */

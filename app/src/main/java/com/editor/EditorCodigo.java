@@ -11,48 +11,55 @@ import android.view.KeyEvent;
 import android.view.inputmethod.InputMethodManager;
 import android.graphics.Canvas;
 import android.view.MotionEvent;
+import android.graphics.Typeface;
+import java.util.ArrayList;
+import java.util.List;
 
 public class EditorCodigo extends View {
-	public final Paint pincelTxt;
-	public final Paint pincelNums;
-	public final Paint pincelFundoLin;
-	public final Rect areaMedida;
-	public Editable conteudo;
-	public int posX;
-	public int linSele;
-	public int colSele;
-	public int alturaLin = 50;
-	public int larguraCar = 25;
+    public final Paint pincelTxt;
+    public final Paint pincelNums;
+    public final Paint pincelFundoLin;
+    public final Rect areaMedida;
+    public Editable conteudo;
+    public int posX;
+    public int linSele;
+    public int colSele;
+    public int alturaLin = 50;
+    public int larguraCar = 25;
+    public List<Destaque> destaques = new ArrayList<>();
+    public int corTexto = Color.BLACK;
+	public Sintaxe sintaxe = null;
 
-	public EditorCodigo(Context ctx, AttributeSet atributos) {
-		super(ctx, atributos);
-		setFocusable(true);
-		setFocusableInTouchMode(true);
-		setBackgroundColor(Color.WHITE);
+    public EditorCodigo(Context ctx, AttributeSet atribs) {
+        super(ctx, atribs);
+        setFocusable(true);
+        setFocusableInTouchMode(true);
+        setBackgroundColor(Color.WHITE);
 
-		pincelTxt = new Paint();
-		pincelTxt.setColor(Color.BLACK);
-		pincelTxt.setTextSize(40);
-		pincelTxt.setAntiAlias(true);
+        pincelTxt = new Paint();
+        pincelTxt.setColor(Color.BLACK);
+        pincelTxt.setTextSize(40);
+        pincelTxt.setAntiAlias(true);
 
-		pincelNums = new Paint();
-		pincelNums.setColor(Color.GRAY);
-		pincelNums.setTextSize(35);
-		pincelNums.setAntiAlias(true);
+        pincelNums = new Paint();
+        pincelNums.setColor(Color.GRAY);
+        pincelNums.setTextSize(35);
+        pincelNums.setAntiAlias(true);
 
-		pincelFundoLin = new Paint();
-		pincelFundoLin.setColor(Color.parseColor("#E3F2FD"));
+        pincelFundoLin = new Paint();
+        pincelFundoLin.setColor(Color.parseColor("#E3F2FD"));
 
-		areaMedida = new Rect();
-		conteudo = Editable.Factory.getInstance().newEditable("");
+        areaMedida = new Rect();
+        conteudo = Editable.Factory.getInstance().newEditable("");
 
-		setOnFocusChangeListener(new OnFocusChangeListener() {
+        setOnFocusChangeListener(new OnFocusChangeListener() {
 				@Override
 				public void onFocusChange(View v, boolean foco) {
 					if(foco) abrirTeclado();
 				}
 			});
-		setOnKeyListener(new OnKeyListener() {
+
+        setOnKeyListener(new OnKeyListener() {
 				@Override
 				public boolean onKey(View v, int tecla, KeyEvent e) {
 					if(e.getAction() == KeyEvent.ACTION_DOWN) {
@@ -86,183 +93,221 @@ public class EditorCodigo extends View {
 					return false;
 				}
 			});
-	}
+    }
 
-	public void abrirTeclado() {
-		InputMethodManager gerenciadorEntrada = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-		gerenciadorEntrada.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT);
-	}
+    public static class Destaque {
+        public int inicio;
+        public int fim;
+        public int cor;
 
-	@Override
-	protected void onDraw(Canvas canvas) {
-		super.onDraw(canvas);
-		renderNumLins(canvas);
-		// fundo:
-		int posY = linSele * alturaLin - posX;
-		canvas.drawRect(0, posY, getWidth(), posY + alturaLin, pincelFundoLin);
-		// conteudo:
-		String[] lins = conteudo.toString().split("\n");
-		for(int i = 0; i < lins.length; i++) {
-			int posYTxt = i * alturaLin - posX;
-			if(posYTxt >= -alturaLin && posYTxt <= getHeight()) canvas.drawText(lins[i], 60, posYTxt + alturaLin - 10, pincelTxt);
-		}
-		// cursor:
-		int cursorX = colSele * larguraCar + 60;
-		int cursorY = linSele * alturaLin - posX;
-		canvas.drawLine(cursorX, cursorY, cursorX, cursorY + alturaLin, pincelTxt);
-	}
+        public Destaque(int inicio, int fim, int cor) {
+            this.inicio = inicio;
+            this.fim = fim;
+            this.cor = cor;
+        }
+    }
 
-	public void addCaractere(char c) {
+    public void setDestaques(List<Destaque> destaques) {
+        this.destaques = destaques;
+        invalidate();
+    }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);
+        renderNumLins(canvas);
+
+        String textoCompleto = conteudo.toString();
+        String[] lins = textoCompleto.split("\n", -1);
+
+        for(int i = 0; i < lins.length; i++) {
+            int startLineIndex = obterIndice(i, lins);
+            int y = i * alturaLin - posX;
+            if(y >= -alturaLin && y <= getHeight()) desenharLinha(canvas, lins[i], startLineIndex, 60, y + alturaLin - 10);
+        }
+        int cursorX = colSele * larguraCar + 60;
+        int cursorY = linSele * alturaLin - posX;
+        canvas.drawLine(cursorX, cursorY, cursorX, cursorY + alturaLin, pincelTxt);
+    }
+
+    public int obterIndice(int linNum, String[] lines) {
+        int idc = 0;
+        for(int i = 0; i < linNum; i++) idc += lines[i].length() + 1;
+        return idc;
+    }
+
+    private void desenharLinha(Canvas canvas, String lin, int inicioGlobal, int x, int y) {
+        int xAtual = x;
+        int corAtual = corTexto;
+        int inicio = 0;
+
+        for(int i = 0; i <= lin.length(); i++) {
+            int indiceGlobal = inicioGlobal + i;
+            int cor = cor(indiceGlobal);
+            if(i == lin.length() || cor != corAtual) {
+                if(i > inicio) {
+                    String seg = lin.substring(inicio, i);
+                    pincelTxt.setColor(corAtual);
+                    canvas.drawText(seg, xAtual, y, pincelTxt);
+                    xAtual += pincelTxt.measureText(seg);
+                }
+                inicio = i;
+                corAtual = cor;
+            }
+        }
+    }
+
+    public int cor(int i) {
+        for(Destaque destaque : destaques) {
+            if(i >= destaque.inicio && i < destaque.fim) return destaque.cor;
+        }
+        return corTexto;
+    }
+
+    public void abrirTeclado() {
+        InputMethodManager gerenciadorEntrada = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+        gerenciadorEntrada.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT);
+    }
+
+    public void addCaractere(char c) {
 		int pos = calcularPosNoTxt();
 		conteudo.insert(pos, String.valueOf(c));
 		attCursorPos(c);
 		invalidate();
+		if(sintaxe != null) sintaxe.att();
 	}
 
-	public void rmCaractere() {
-		if(calcularPosNoTxt() > 0) {
-			int pos = calcularPosNoTxt() - 1;
+    public void rmCaractere() {
+        if(calcularPosNoTxt() > 0) {
+            int pos = calcularPosNoTxt() - 1;
+            if(pos < conteudo.length() && conteudo.charAt(pos) == '\n') {
+                String[] lins = conteudo.toString().split("\n", -1);
+                if(linSele > 0) {
+                    int novaLin = linSele - 1;
+                    int novaCol = lins[novaLin].length();
+                    conteudo.delete(pos, pos + 1);
+                    linSele = novaLin;
+                    colSele = novaCol;
+                }
+            } else {
+                conteudo.delete(pos, pos + 1);
+                attCursorPosRemocao();
+            }
+            invalidate();
+			if(sintaxe != null) sintaxe.att();
+        }
+    }
 
-			if(pos < conteudo.length() && conteudo.charAt(pos) == '\n') {
-				String[] lins = conteudo.toString().split("\n", -1);
-				if(linSele > 0) {
-					int novaLin = linSele - 1;
-					int novaCol = lins[novaLin].length();
-					conteudo.delete(pos, pos + 1);
+    public void renderNumLins(Canvas canvas) {
+        String[] lins = conteudo.toString().split("\n", -1);
+        for(int i = 0; i < lins.length; i++) {
+            int posicaoY = i * alturaLin - posX;
+            if(posicaoY >= -alturaLin && posicaoY <= getHeight()) {
+                String numero = String.valueOf(i + 1);
+                canvas.drawText(numero, 10, posicaoY + alturaLin - 10, pincelNums);
+            }
+        }
+    }
 
-					linSele = novaLin;
-					colSele = novaCol;
-				}
-			} else {
-				conteudo.delete(pos, pos + 1);
-				attCursorPosRemocao();
-			}
-			invalidate();
-		}
-	}
+    @Override
+    public boolean onTouchEvent(MotionEvent e) {
+        if(e.getAction() == MotionEvent.ACTION_DOWN) {
+            requestFocus();
+            abrirTeclado();
+            int y = (int) e.getY() + posX;
+            linSele = y / alturaLin;
+            String[] lins = conteudo.toString().split("\n", -1);
+            if(linSele >= lins.length) linSele = lins.length - 1;
+            if(linSele < 0) linSele = 0;
+            int x = (int) e.getX() - 60;
+            colSele = Math.max(0, Math.min(lins[linSele].length(), x / larguraCar));
+            invalidate();
+            return true;
+        }
+        return super.onTouchEvent(e);
+    }
 
-	public void renderNumLins(Canvas canvas) {
-		String[] lins = conteudo.toString().split("\n", -1);
-		int quantidadeLinhas = lins.length;
+    public int calcularPosNoTxt() {
+        String[] lins = conteudo.toString().split("\n", -1);
+        int pos = 0;
+        for(int i = 0; i < linSele; i++) pos += lins[i].length() + 1;
+			
+        pos += colSele;
+        return Math.min(pos, conteudo.length());
+    }
 
-		for(int i = 0; i < quantidadeLinhas; i++) {
-			int posicaoY = i * alturaLin - posX;
-			if(posicaoY >= -alturaLin && posicaoY <= getHeight()) {
-				String numero = String.valueOf(i + 1);
-				canvas.drawText(numero, 10, posicaoY + alturaLin - 10, pincelNums);
-			}
-		}
-	}
+    public void attCursorPos(char c) {
+        if(c == '\n') {
+            linSele++;
+            colSele = 0;
+        } else colSele++;
+        ajustarRolagem();
+    }
 
-	@Override
-	public boolean onTouchEvent(MotionEvent e) {
-		if(e.getAction() == MotionEvent.ACTION_DOWN) {
-			requestFocus();
-			abrirTeclado();
+    public void attCursorPosRemocao() {
+        if(colSele > 0) colSele--;
+        else if(linSele > 0) {
+            linSele--;
+            String[] lins = conteudo.toString().split("\n");
+            colSele = lins[linSele].length();
+        }
+        ajustarRolagem();
+    }
 
-			int y = (int) e.getY() + posX;
-			linSele = y / alturaLin;
+    public void ajustarRolagem() {
+        int posicaoYCursor = linSele * alturaLin;
+        if(posicaoYCursor < posX) posX = posicaoYCursor;
+        else if(posicaoYCursor + alturaLin > posX + getHeight()) posX = posicaoYCursor + alturaLin - getHeight();
+        invalidate();
+    }
 
-			String[] lins = conteudo.toString().split("\n", -1);
-			if(linSele >= lins.length) linSele = lins.length - 1;
-			if(linSele < 0) linSele = 0;
+    public void moverCursorCima() {
+        if(linSele > 0) {
+            linSele--;
+            String[] lins = conteudo.toString().split("\n");
+            colSele = Math.min(colSele, lins[linSele].length());
+            ajustarRolagem();
+        }
+    }
 
-			int x = (int) e.getX() - 60;
-			colSele = Math.max(0, Math.min(lins[linSele].length(), x / larguraCar));
+    public void moverCursorBaixo() {
+        String[] lins = conteudo.toString().split("\n");
+        if(linSele < lins.length - 1) {
+            linSele++;
+            colSele = Math.min(colSele, lins[linSele].length());
+            ajustarRolagem();
+        }
+    }
 
-			invalidate();
-			return true;
-		}
-		return super.onTouchEvent(e);
-	}
+    public void moverCursorEsquerda() {
+        if(colSele > 0) colSele--;
+        else if(linSele > 0) {
+            linSele--;
+            String[] lins = conteudo.toString().split("\n");
+            colSele = lins[linSele].length();
+        }
+        ajustarRolagem();
+    }
 
-	public int calcularPosNoTxt() {
-		String[] lins = conteudo.toString().split("\n", -1);
-		int pos = 0;
-		for(int i = 0; i < linSele; i++) pos += lins[i].length() + 1;
-		pos += colSele;
-		return Math.min(pos, conteudo.length());
-	}
+    public void moverCursorDireita() {
+        String[] lins = conteudo.toString().split("\n");
+        if(colSele < lins[linSele].length()) colSele++;
+        else if(linSele < lins.length - 1) {
+            linSele++;
+            colSele = 0;
+        }
+        ajustarRolagem();
+    }
 
-	public void attCursorPos(char c) {
-		if(c == '\n') {
-			linSele++;
-			colSele = 0;
-		} else colSele++;
-		ajustarRolagem();
-	}
+    public void defTexto(String novoTxt) {
+        conteudo = Editable.Factory.getInstance().newEditable(novoTxt);
+        linSele = 0;
+        colSele = 0;
+        invalidate();
+		if(sintaxe != null) sintaxe.att();
+    }
 
-	public void attCursorPosRemocao() {
-		if(colSele > 0) colSele--;
-		else if(linSele > 0) {
-			linSele--;
-			String[] linhas = conteudo.toString().split("\n");
-			colSele = linhas[linSele].length();
-		}
-		ajustarRolagem();
-	}
-
-	public void ajustarRolagem() {
-		int posicaoYCursor = linSele * alturaLin;
-		if(posicaoYCursor < posX) posX = posicaoYCursor;
-		else if(posicaoYCursor + alturaLin > posX + getHeight()) posX = posicaoYCursor + alturaLin - getHeight();
-		invalidate();
-	}
-
-	public void moverCursorCima() {
-		if(linSele > 0) {
-			linSele--;
-			String[] lins = conteudo.toString().split("\n");
-			colSele = Math.min(colSele, lins[linSele].length());
-			ajustarRolagem();
-		}
-	}
-
-	public void moverCursorBaixo() {
-		String[] linhas = conteudo.toString().split("\n");
-		if(linSele < linhas.length - 1) {
-			linSele++;
-			colSele = Math.min(colSele, linhas[linSele].length());
-			ajustarRolagem();
-		}
-	}
-
-	public void moverCursorEsquerda() {
-		if(colSele > 0) {
-			colSele--;
-		} else if(linSele > 0) {
-			linSele--;
-			String[] linhas = conteudo.toString().split("\n");
-			colSele = linhas[linSele].length();
-		}
-		ajustarRolagem();
-	}
-
-	public void moverCursorDireita() {
-		String[] linhas = conteudo.toString().split("\n");
-		if(colSele < linhas[linSele].length()) colSele++;
-		else if(linSele < linhas.length - 1) {
-			linSele++;
-			colSele = 0;
-		}
-		ajustarRolagem();
-	}
-
-	public void defTexto(String novoTxt) {
-		conteudo = Editable.Factory.getInstance().newEditable(novoTxt);
-		linSele = 0;
-		colSele = 0;
-		invalidate();
-	}
-
-	public void defTexto(String novoTxt, int linSele, int colSele) {
-		conteudo = Editable.Factory.getInstance().newEditable(novoTxt);
-		this.linSele = linSele;
-		this.colSele = linSele;
-		invalidate();
-	}
-
-	public String obterTexto() {
-		return conteudo.toString();
-	}
+    public String obterTexto() {
+        return conteudo.toString();
+    }
 }

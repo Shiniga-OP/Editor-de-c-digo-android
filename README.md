@@ -1,4 +1,5 @@
-## Esse é um editor simples de código com sintaxe padrão em Java para Android. Ele não utiliza bibliotecas externas.
+## ERS (Editor Renderizado com SurfaceView)
+é um editor simples de código com sintaxe padrão em Java para Android. Ele não utiliza bibliotecas externas.
 
 ## o editor contém:
 1. Autocomplete personalizável
@@ -11,6 +12,7 @@ Java
 Javascript
 Fp
 Assembly (Aarch64 linux)
+C
 
 ## uso:
 
@@ -24,7 +26,7 @@ new AutoCompletar(activity, editText, "palavras", "chave", "para", "sugestoes");
 
 // para desativar o uso do autocomplete use:
 
-AutoComplete.autocomplete = false;
+AutoCompletar.autocomplete = false;
 ```
 
 ## [NOVO]:
@@ -34,12 +36,4 @@ AutoComplete.autocomplete = false;
 para ativar o ferramenta de busca no codigo, digite:
 
 //busca
-
 sem espaços, e a ferramenta de busca e substuição será ativada.
-
-## zoom:
-caso as letras estejam muito pequenas ou muito grandes, faça o gesto de pinça para que o zoom seja ativado.
-
-## palavras chave em tempo real
-
-agora suas variaveis e funções declaradas são adicionadas as sugestões do auto completar.
