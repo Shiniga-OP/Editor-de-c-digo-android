@@ -27,9 +27,7 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 		editor = findViewById(R.id.editor);
 		new Sintaxe.C().aplicar(editor);
-		/*
-        new Sintaxe.C().aplicar(editor);
-		new AutoCompletar(this, editor, AutoCompletar.sintaxe("C")); */
+		editor.auto = new AutoCompletar(this, editor, AutoCompletar.sintaxe("C"));
 		AutoCompletar.autocomplete = true;
     }
 }

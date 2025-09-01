@@ -4,20 +4,16 @@ import android.app.Activity;
 import android.graphics.Color;    
 import android.graphics.drawable.ColorDrawable;    
 import android.text.Editable;    
-import android.text.TextWatcher;    
 import android.view.Gravity;    
 import android.view.View;    
 import android.view.inputmethod.InputMethodManager;    
-import android.widget.EditText;    
 import android.widget.PopupWindow;    
 import android.widget.TextView;    
 import android.widget.LinearLayout;    
 import java.util.ArrayList;    
 import java.util.Arrays;    
 import java.util.List;    
-import android.text.Layout;    
 import android.widget.ScrollView;    
-import android.view.KeyEvent;    
 import java.util.HashSet;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
@@ -29,36 +25,52 @@ import android.graphics.drawable.StateListDrawable;
 import android.graphics.Typeface;
 import android.os.Handler;
 import android.view.ViewGroup;
+import android.widget.EditText;
+import android.text.Layout;
 
 public class AutoCompletar {    
     public final Activity activity;    
-    public final EditText editText;    
+    public final EditorCodigo editor;
     public final Sugestao[] palavras;    
     public final List<Sugestao> sugestoes = new ArrayList<>();    
     public final PopupWindow popup;    
     public final LinearLayout layout;    
     public static boolean autocomplete = false;
     public final HashSet<Sugestao> palavrasDoc = new HashSet<>();
-	
-	public static class Sugestao {
-		public String codigo, tipo;
-		public CharSequence[] args;
-		
-		public Sugestao(String codigo, String tipo, CharSequence... args) {
-			this.codigo = codigo;
-			this.tipo = tipo;
-			this.args = args;
-		}
-	}
+	public OlhadorSintaxe olhador;
 
-    public AutoCompletar(Activity act, EditText et, Sugestao... lista) {    
+	public static class Sugestao {
+        public String codigo, tipo;
+        public CharSequence[] args;
+
+        public Sugestao(String codigo, String tipo, CharSequence... args) {
+            this.codigo = codigo;
+            this.tipo = tipo;
+            this.args = args;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if(this == o) return true;
+            if(!(o instanceof Sugestao)) return false;
+            Sugestao s = (Sugestao) o;
+            return codigo != null && codigo.equals(s.codigo);
+        }
+
+        @Override
+        public int hashCode() {
+            return codigo != null ? codigo.hashCode() : 0;
+        }
+    }
+
+    public AutoCompletar(Activity act, EditorCodigo editor, Sugestao... lista) {
         activity = act;    
-        editText = et;    
+        this.editor = editor;
         palavras = lista;    
+		olhador = new OlhadorSintaxe(editor);
 
         for(Sugestao palavra : palavras) palavrasDoc.add(palavra);
 
-        editText.addTextChangedListener(new olhadorSintaxe(editText));    
         layout = new LinearLayout(activity);    
         layout.setOrientation(LinearLayout.VERTICAL);    
         layout.setBackgroundColor(Color.WHITE);    
@@ -66,21 +78,31 @@ public class AutoCompletar {
         ScrollView sugs = new ScrollView(activity);    
         sugs.addView(layout);    
 
-        popup = new PopupWindow(sugs, editText.getWidth(), 300);    
+        popup = new PopupWindow(sugs, editor.getWidth(), 300);    
         popup.setBackgroundDrawable(new ColorDrawable(Color.LTGRAY));    
         popup.setOutsideTouchable(true);    
         popup.setFocusable(false);    
-
-        editText.addTextChangedListener(new TextWatcher() {    
-                @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}    
-                @Override public void onTextChanged(CharSequence s, int a, int b, int c) {}    
-                @Override public void afterTextChanged(Editable s) {
-					palavrasDoc.clear();
-					coletarPalavrasDoDoc(s.toString());
-                    mostrarSugestoes(obterTokenAtual());    
-                }    
-            });    
     }
+
+    public void att(Editable s, int posicao, int removido, int adicionado) {
+		olhador.att(s, posicao, removido, adicionado);
+		palavrasDoc.clear();
+		sugestoes.clear();
+		coletarPalavrasDoDoc(s.toString());
+		mostrarSugestoes(obterTokenAtual());
+	}
+
+    public String obterTokenAtual() {
+        int pos = editor.calcularPosNoTxt();
+        if(pos == 0) return "";
+        CharSequence txt = editor.obterTexto();
+        int i = pos - 1;
+        while(i >= 0 && (Character.isLetterOrDigit(txt.charAt(i)) ||
+              txt.charAt(i) == '#' || txt.charAt(i) == '_' || txt.charAt(i) == '.' ||
+              txt.charAt(i) == '<' || txt.charAt(i) == '>' || txt.charAt(i) == '*'
+			  )) i--;
+        return txt.subSequence(i + 1, pos).toString();
+    }    
 
     public void coletarPalavrasDoDoc(String texto) {
         Pattern p = Pattern.compile("\\b[a-zA-Z_][a-zA-Z0-9_]*\\b");
@@ -120,8 +142,7 @@ public class AutoCompletar {
 		}
 	}
 
-    public void mostrarSugestoes(String token) {    
-		sugestoes.clear();    
+    public void mostrarSugestoes(String token) {        
 		layout.removeAllViews();    
 		if(token.length() == 0) {    
 			popup.dismiss();    
@@ -192,9 +213,9 @@ public class AutoCompletar {
 								public void run() {
 									substituirToken(s.codigo);    
 									popup.dismiss();    
-									editText.requestFocus();    
+									editor.requestFocus();    
 									InputMethodManager em = (InputMethodManager) activity.getSystemService(Activity.INPUT_METHOD_SERVICE);    
-									em.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT);    
+									em.showSoftInput(editor, InputMethodManager.SHOW_IMPLICIT);    
 								}
 							}, 100);
 					}    
@@ -207,53 +228,29 @@ public class AutoCompletar {
 		}    
 		if(layout.getChildCount() > 0) layout.removeViewAt(layout.getChildCount() - 1);
 
-        int antes = editText.getSelectionStart();    
-        Layout layout = editText.getLayout();    
+		int[] loc = new int[2];
+		editor.getLocationOnScreen(loc);
 
-        if(layout != null && antes >= 0) {    
-            int linha = layout.getLineForOffset(antes);    
-            int baselinha = layout.getLineBaseline(linha);    
-            int ascent = layout.getLineAscent(linha);    
-            float x = layout.getPrimaryHorizontal(antes);    
+		int popupY = loc[1] + editor.obterCursorY() + editor.alturaLin;
 
-            int[] loc = new int[2];    
-            editText.getLocationOnScreen(loc);    
+		if(!popup.isShowing()) {
+			popup.setWidth(editor.getWidth() / 2);
+			popup.showAtLocation(editor, Gravity.NO_GRAVITY, loc[0] + 60, popupY);
+		} else popup.update(loc[0] + 60, popupY, popup.getWidth(), popup.getHeight());
+	}
 
-            int popupX = (int)(loc[0] + x);    
-            int popupY = loc[1] + baselinha + ascent;    
-
-            if(!popup.isShowing()) {    
-                popup.setWidth(editText.getWidth() / 2);    
-                popup.showAtLocation(editText, Gravity.NO_GRAVITY, popupX, popupY);    
-            } else popup.update(popupX, popupY, popup.getWidth(), popup.getHeight());    
-        }    
-    }    
-
-    public String obterTokenAtual() {
-        int pos = editText.getSelectionStart();
-        if(pos == 0) return "";
-        CharSequence txt = editText.getText();
-        int i = pos - 1;
-        while(i >= 0 && (Character.isLetterOrDigit(txt.charAt(i)) ||
-              txt.charAt(i) == '#' || txt.charAt(i) == '_' || txt.charAt(i) == '.' ||
-              txt.charAt(i) == '<' || txt.charAt(i) == '>' || txt.charAt(i) == '*' ||
-              txt.charAt(i) == '\n'
-        )) i--;
-        return txt.subSequence(i + 1, pos).toString();
-    }    
-
-    public void substituirToken(String nova) {    
-        int pos = editText.getSelectionStart();    
-        Editable txt = editText.getText();    
-        int i = pos - 1;    
-        while(i >= 0 && (Character.isLetterOrDigit(txt.charAt(i)) ||
-              txt.charAt(i) == '#' || txt.charAt(i) == '_' || txt.charAt(i) == '.' ||
-              txt.charAt(i) == '<' || txt.charAt(i) == '>' || txt.charAt(i) == '*' ||
-              txt.charAt(i) == '\n'
-        )) i--;
-        txt.replace(i + 1, pos, nova);    
-        editText.setSelection(i + 1 + nova.length());    
-    }    
+	public void substituirToken(String nova) {
+		int pos = editor.calcularPosNoTxt();
+		Editable txt = editor.conteudo;
+		int i = pos - 1;
+		while(i >= 0 && (Character.isLetterOrDigit(txt.charAt(i)) ||
+			  txt.charAt(i) == '#' || txt.charAt(i) == '_' || txt.charAt(i) == '.' ||
+			  txt.charAt(i) == '<' || txt.charAt(i) == '>' || txt.charAt(i) == '*' ||
+			  txt.charAt(i) == '\n'
+			  )) i--;
+		txt.replace(i + 1, pos, nova);
+		editor.defSelecao(i + 1 + nova.length());
+	}
 	
 	public void mostrarBuscaRapida() {
 		try {
@@ -288,16 +285,16 @@ public class AutoCompletar {
 			popupBusca.setFocusable(true);
 
 			int[] local = new int[2];
-			editText.getLocationOnScreen(local);
-			popupBusca.showAtLocation(editText, Gravity.TOP, local[0], local[1] + 50);
+			editor.getLocationOnScreen(local);
+			popupBusca.showAtLocation(editor, Gravity.TOP, local[0], local[1] + 50);
 
 			btnBuscar.setOnClickListener(new View.OnClickListener() {
 					@Override
 					public void onClick(View v) {
 						String textoBusca = campoBusca.getText().toString();
 						if(!textoBusca.isEmpty()) {
-							int pos = editText.getText().toString().indexOf(textoBusca);
-							if(pos != -1) editText.setSelection(pos, pos + textoBusca.length());
+							int pos = editor.obterTexto().indexOf(textoBusca);
+							if(pos != -1) editor.defSelecao(pos);
 						}
 					}
 				});
@@ -309,9 +306,9 @@ public class AutoCompletar {
 						String textoSubstituir = campoSubstituir.getText().toString();
 
 						if(!textoBusca.isEmpty()) {
-							Editable texto = editText.getText();
-							int i = editText.getSelectionStart();
-							int e = editText.getSelectionEnd();
+							Editable texto = editor.conteudo;
+							int i = editor.calcularPosNoTxt();
+							int e = editor.calcularPosNoTxt();
 							if(i != e) {
 								String selecionado = texto.subSequence(i, e).toString();
 								if(selecionado.equals(textoBusca)) texto.replace(i, e, textoSubstituir);
@@ -327,9 +324,9 @@ public class AutoCompletar {
 						String textoSubstituir = campoSubstituir.getText().toString();
 
 						if(!textoBusca.isEmpty()) {
-							String textoCompleto = editText.getText().toString();
+							String textoCompleto = editor.obterTexto();
 							String novoTxt = textoCompleto.replace(textoBusca, textoSubstituir);
-							editText.setText(novoTxt);
+							editor.defTexto(novoTxt);
 						}
 					}
 				});
@@ -338,32 +335,29 @@ public class AutoCompletar {
 		}
 	}
 
-    public class olhadorSintaxe implements TextWatcher {    
-        public final EditText editor;    
+    public class OlhadorSintaxe {    
+        public final EditorCodigo editor;    
         public boolean processando = false;    
         public int ultimoInicio, ultimoAntes, ultimaQuantidade;    
 
-        public olhadorSintaxe(EditText editor) {    
+        public OlhadorSintaxe(EditorCodigo editor) {    
             this.editor = editor;    
-        }    
+        }  
 
-        @Override    
-        public void beforeTextChanged(CharSequence s, int i, int c, int a) { }    
+		public void att(Editable s, int i, int a, int c) {
+			ultimoInicio = Math.min(i, s.length() - 1);
+			ultimoAntes = a;
+			ultimaQuantidade = c;
+			aplicar(s);
+		}
 
-        @Override    
-        public void onTextChanged(CharSequence s, int i, int a, int c) {    
-            ultimoInicio = i;    
-            ultimoAntes = a;    
-            ultimaQuantidade = c;    
-        }    
-
-        @Override
-        public void afterTextChanged(Editable txt) {
+        public void aplicar(Editable txt) {
             if(processando) return;
             processando = true;
 
             if(ultimoAntes == 0 && ultimaQuantidade == 1) {
-                char c = txt.charAt(ultimoInicio);
+				if(ultimoInicio >= txt.length()) return;
+				char c = txt.charAt(ultimoInicio);
 				int pos = ultimoInicio;
 				if(pos >= 6 && txt.subSequence(pos-6, pos+1).toString().equals("//busca")) {
 					txt.replace(pos-6, pos+1, "");
@@ -375,13 +369,13 @@ public class AutoCompletar {
                         while(i >= 0 && (Character.isLetterOrDigit(txt.charAt(i)) ||
                               txt.charAt(i) == '#' || txt.charAt(i) == '_' || txt.charAt(i) == '.' ||
                               txt.charAt(i) == '<' || txt.charAt(i) == '>' || txt.charAt(i) == '*' ||
-                              txt.charAt(i) == '\n'
+							  txt.charAt(i) == '\n'
                         )) i--;
                         int tokenI = i + 1;
                         String nova = sugestoes.get(0).codigo;
                         txt.replace(tokenI, pos, nova);
                         pos = tokenI + nova.length();
-                        editor.setSelection(pos + 1);
+                        editor.defSelecao(pos + 1);
                         popup.dismiss();
                         sugestoes.clear();
                     }
@@ -397,15 +391,15 @@ public class AutoCompletar {
                     int fim = pos - 1;
                     while(fim >= 0 && (txt.charAt(fim) == '\t' || txt.charAt(fim) == ' ')) fim--;
                     boolean abre = fim >= 0 && (txt.charAt(fim) == '{' || txt.charAt(fim) == ':');
-                    if(abre) sb.append('\t');
+                    if(abre) sb.append("\t");
 
                     String inden = sb.toString();
                     txt.insert(pos + 1, inden);
-                    editor.setSelection(pos + 1 + inden.length());
+                    editor.defSelecao(pos + 1 + inden.length());
                 } else if(c == '{') {
                     if(ultimoInicio + 1 >= txt.length() || txt.charAt(ultimoInicio + 1) != '}')
                         txt.insert(ultimoInicio + 1, "}");
-                    editor.setSelection(ultimoInicio);
+                    editor.defSelecao(ultimoInicio + 1);
                 }
             }
             processando = false;
@@ -487,7 +481,7 @@ public class AutoCompletar {
 				new Sugestao("if(", "Condicional", "boolean"),
 				new Sugestao("for(", "Condicional", "Object, boolean, Object"),
 				new Sugestao("switch(", "Condicional", "Object"),
-				new Sugestao("try {\n\n\n} catch(e) {\nconsole.log(\"erro: \"+e);\n}", "void"),
+				new Sugestao("try {\n\n} catch(e) {\n\t\t\tconsole.log(\"erro: \"+e);\n}", "void"),
 				new Sugestao(".replace(", "Metodo", "String", "String"),
 				new Sugestao(".split(", "Metodo", "String"),
 				new Sugestao(".trim()", "Metodo", "void"),
@@ -543,7 +537,7 @@ public class AutoCompletar {
 				new Sugestao("else", "PalavraChave"),
 				new Sugestao("struct", "PalavraChave"),
 				new Sugestao("typedef", "PalavraChave"),
-				new Sugestao("enum", "PalavraChave"),
+				new Sugestao("enum", "PalavraChave")
 			};    
         }
 		if(linguagem.equals("FP")) {
@@ -572,7 +566,7 @@ public class AutoCompletar {
 				new Sugestao("lerArquivo(", "Metodo", "Tex"),
 				new Sugestao("obExterno()", "Metodo", "vazio"),
 				new Sugestao("execArquivo(", "Metodo", "Tex"),
-				new Sugestao("FPexec(", "Metodo", "Tex"),
+				new Sugestao("FPexec(", "Metodo", "Tex")
 			};    
         }
 		if(linguagem.equals("asm-arm64")) {    

@@ -25,7 +25,7 @@ abstract public class Sintaxe {
             if(editor != null) {
                 String texto = editor.obterTexto();
                 List<Destaque> destaques = calcularDestaques(texto);
-                editor.setDestaques(destaques);
+                editor.defDestaques(destaques);
             }
         }
     };
@@ -33,8 +33,8 @@ abstract public class Sintaxe {
 	public void aplicar(final EditorCodigo editor) {
 		this.editor = editor;
 		editor.sintaxe = this;
-		List<EditorCodigo.Destaque> destaques = calcularDestaques(editor.obterTexto());
-		editor.setDestaques(destaques);
+		List<Destaque> destaques = calcularDestaques(editor.obterTexto());
+		editor.defDestaques(destaques);
 	}
 
     public void att() {
@@ -42,56 +42,88 @@ abstract public class Sintaxe {
         loop.postDelayed(destaqueRunnable, DELAY_MILLIS);
     }
 
-    public List<EditorCodigo.Destaque> calcularDestaques(String texto) {
-        List<EditorCodigo.Destaque> destaques = new ArrayList<>();
+    public List<Destaque> calcularDestaques(String texto) {
+        List<Destaque> destaques = new ArrayList<>();
         aplicarDestaques(destaques, texto);
         return destaques;
     }
 
-    protected abstract void aplicarDestaques(List<EditorCodigo.Destaque> destaques, String texto);
-
-    public static void destacarComentarios(List<EditorCodigo.Destaque> destaques, String txt, String cor) {
+    protected abstract void aplicarDestaques(List<Destaque> destaques, String texto);
+	
+	public static void destacarComentarios(List<Destaque> destaques, String txt, String cor) {
+        destacarComentarios(destaques, txt, cor, false, false);
+    }
+	
+	public static void destacarNumeros(List<Destaque> destaques, String txt, String cor) {
+        destacarNumeros(destaques, txt, cor, false, false);
+    }
+	
+	public static void destacarPalavra(List<Destaque> destaques, String txt, String palavra, String cor) {
+        destacarPalavra(destaques, txt, palavra, cor, false, false);
+    }
+	
+	public static void destacarSimbolo(List<Destaque> destaques, String txt, String simb, String cor) {
+        destacarSimbolo(destaques, txt, simb, cor, false, false);
+    }
+	
+	public static void destacarIncludes(List<Destaque> destaques, String txt, String cor) {
+        destacarIncludes(destaques, txt, cor, false, false);
+    }
+	
+	public static void destacarAspas(List<Destaque> destaques, String txt, String cor) {
+        destacarAspas(destaques, txt, cor, false, false);
+    }
+	
+	public void destacarFuncoes(List<Destaque> destaques, String txt, String cor) {
+        destacarFuncoes(destaques, txt, cor, false, false);
+    }
+	
+	public static void destacarProximaPalavra(List<Destaque> destaques, String txt, String palavra, String cor) {
+        destacarProximaPalavra(destaques, txt, palavra, cor, false, false);
+    }
+	
+	public static void destacarComentarios(List<Destaque> destaques, String txt, String cor, boolean negrito, boolean italico) {
         int corInt = Color.parseColor(cor);
         Pattern p1 = Pattern.compile("//.*?$", Pattern.MULTILINE);
         Matcher m1 = p1.matcher(txt);
-        while(m1.find()) destaques.add(new EditorCodigo.Destaque(m1.start(), m1.end(), corInt));
-        
+        while(m1.find()) destaques.add(new Destaque(m1.start(), m1.end(), corInt, 4, negrito, italico));
+
         Pattern p2 = Pattern.compile("/\\*(.|\\n)*?\\*/");
         Matcher m2 = p2.matcher(txt);
-        while(m2.find()) destaques.add(new EditorCodigo.Destaque(m2.start(), m2.end(), corInt));
+        while(m2.find()) destaques.add(new Destaque(m2.start(), m2.end(), corInt, 4, negrito, italico));
     }
 
-    public static void destacarNumeros(List<EditorCodigo.Destaque> destaques, String txt, String cor) {
+    public static void destacarNumeros(List<Destaque> destaques, String txt, String cor, boolean negrito, boolean italico) {
         int corInt = Color.parseColor(cor);
         Pattern p = Pattern.compile("(?<!\\w)(-?\\d+(\\.\\d+)?)(?!\\w)");
         Matcher m = p.matcher(txt);
-        while(m.find()) destaques.add(new EditorCodigo.Destaque(m.start(), m.end(), corInt));
+        while(m.find()) destaques.add(new Destaque(m.start(), m.end(), corInt, 2, negrito, italico));
     }
 
-    public static void destacarPalavra(List<EditorCodigo.Destaque> destaques, String texto, String palavra, String cor) {
+    public static void destacarPalavra(List<Destaque> destaques, String texto, String palavra, String cor, boolean negrito, boolean italico) {
         int corInt = Color.parseColor(cor);
         Pattern p = Pattern.compile("\\b" + palavra + "\\b");
         Matcher m = p.matcher(texto);
-        while(m.find()) destaques.add(new EditorCodigo.Destaque(m.start(), m.end(), corInt));
+        while(m.find()) destaques.add(new Destaque(m.start(), m.end(), corInt, 1, negrito, italico));
     }
 
-    public static void destacarSimbolo(List<EditorCodigo.Destaque> destaques, String texto, String simbolo, String cor) {
+    public static void destacarSimbolo(List<Destaque> destaques, String texto, String simbolo, String cor, boolean negrito, boolean italico) {
         int corInt = Color.parseColor(cor);
         Pattern p = Pattern.compile(Pattern.quote(simbolo));
         Matcher m = p.matcher(texto);
         while (m.find()) {
-            destaques.add(new EditorCodigo.Destaque(m.start(), m.end(), corInt));
+            destaques.add(new Destaque(m.start(), m.end(), corInt, 3, negrito, italico));
         }
     }
 
-    public static void destacarIncludes(List<EditorCodigo.Destaque> destaques, String texto, String cor) {
+    public static void destacarIncludes(List<Destaque> destaques, String texto, String cor, boolean negrito, boolean italico) {
         int corInt = Color.parseColor(cor);
         Pattern p = Pattern.compile("<\\s*[^\\s<>]+\\.h\\s*>");
         Matcher m = p.matcher(texto);
-        while(m.find()) destaques.add(new EditorCodigo.Destaque(m.start(), m.end(), corInt));
+        while(m.find()) destaques.add(new Destaque(m.start(), m.end(), corInt, 2, negrito, italico));
     }
 
-    public static void destacarAspas(List<EditorCodigo.Destaque> destaques, String texto, String cor) {
+    public static void destacarAspas(List<Destaque> destaques, String texto, String cor, boolean negrito, boolean italico) {
         int corInt = Color.parseColor(cor);
         int tam = texto.length();
         int ultimoIndice = 0;
@@ -111,7 +143,7 @@ abstract public class Sintaxe {
                 else fim++;
             }
             if(fimAchado) {
-                destaques.add(new EditorCodigo.Destaque(inicio, fim + 1, corInt));
+                destaques.add(new Destaque(inicio, fim + 1, corInt, 1, negrito, italico));
                 ultimoIndice = fim + 1;
             } else break;
         }
@@ -132,7 +164,7 @@ abstract public class Sintaxe {
                 else fim++;
             }
             if(fimAchado) {
-                destaques.add(new EditorCodigo.Destaque(inicio, fim + 1, corInt));
+                destaques.add(new Destaque(inicio, fim + 1, corInt, 1, negrito, italico));
                 ultimoIndice = fim + 1;
             } else break;
         }
@@ -149,21 +181,21 @@ abstract public class Sintaxe {
         return (conta % 2) == 1;
     }
 
-    public void destacarFuncoes(List<EditorCodigo.Destaque> destaques, String texto, String cor) {
+    public void destacarFuncoes(List<Destaque> destaques, String texto, String cor, boolean negrito, boolean italico) {
         int corInt = Color.parseColor(cor);
         Pattern p = Pattern.compile("\\b(\\w+)\\s*\\(");
         Matcher m = p.matcher(texto);
         while(m.find()) {
             String nomeFuncao = m.group(1);
-            if(!PALAVRAS_NAO_FUNCOES.contains(nomeFuncao)) destaques.add(new EditorCodigo.Destaque(m.start(1), m.end(1), corInt));
+            if(!PALAVRAS_NAO_FUNCOES.contains(nomeFuncao)) destaques.add(new EditorCodigo.Destaque(m.start(1), m.end(1), corInt, 1, negrito, italico));
         }
     }
 
-    public static void destacarProximaPalavra(List<EditorCodigo.Destaque> destaques, String texto, String palavraChave, String cor) {
+    public static void destacarProximaPalavra(List<Destaque> destaques, String texto, String palavraChave, String cor, boolean negrito, boolean italico) {
         int corInt = Color.parseColor(cor);
         Pattern p = Pattern.compile("\\b" + palavraChave + "\\s+(\\w+)\\b");
         Matcher m = p.matcher(texto);
-        while(m.find()) destaques.add(new EditorCodigo.Destaque(m.start(1), m.end(1), corInt));
+        while(m.find()) destaques.add(new Destaque(m.start(1), m.end(1), corInt, 1, negrito, italico));
     }
 
     // ... (rest das classes internas FP, Java, JS, ASMArm64, C) permanece igua
@@ -399,19 +431,19 @@ abstract public class Sintaxe {
 		@Override
 		protected void aplicarDestaques(List<EditorCodigo.Destaque> e, String texto) {
 			// azul escuro
-            destacarPalavra(e, texto, "text", "#3F51B5");
-            destacarPalavra(e, texto, "data", "#3F51B5");
-            destacarPalavra(e, texto, "rodata", "#3F51B5");
-            destacarPalavra(e, texto, "bss", "#3F51B5");
-            destacarPalavra(e, texto, "asciz", "#3F51B5");
-            destacarPalavra(e, texto, "byte", "#3F51B5");
-            destacarPalavra(e, texto, "word", "#3F51B5");
-            destacarPalavra(e, texto, "space", "#3F51B5");
-            destacarPalavra(e, texto, "align", "#3F51B5");
-            destacarPalavra(e, texto, "include", "#3F51B5");
+            destacarSimbolo(e, texto, ".text", "#3F51B5", false, true);
+            destacarSimbolo(e, texto, ".data", "#3F51B5", false, true);
+            destacarSimbolo(e, texto, ".rodata", "#3F51B5", false, true);
+            destacarSimbolo(e, texto, ".bss", "#3F51B5", false, true);
+            destacarSimbolo(e, texto, ".asciz", "#3F51B5", false, true);
+            destacarSimbolo(e, texto, ".byte", "#3F51B5", false, true);
+            destacarSimbolo(e, texto, ".word", "#3F51B5", false, true);
+            destacarSimbolo(e, texto, ".space", "#3F51B5", false, true);
+            destacarSimbolo(e, texto, ".align", "#3F51B5", false, true);
+            destacarSimbolo(e, texto, ".include", "#3F51B5", false, true);
             // vermelho
-            destacarPalavra(e, texto, "global", "#FF0000");
-            destacarPalavra(e, texto, "section", "#FF0000");
+            destacarPalavra(e, texto, ".global", "#FF0000", false, true);
+            destacarSimbolo(e, texto, ".section", "#FF0000", false, true);
             // azul claro
             String[] instrucoes = {
                 "mov", "ldr", "str", "strb", "ldrb", 
@@ -426,14 +458,14 @@ abstract public class Sintaxe {
             Matcher mReg = registroPattern.matcher(texto);
             while(mReg.find()) {
                 e.add(
-				new EditorCodigo.Destaque(
+				new Destaque(
 					mReg.start(),
                     mReg.end(),
-					Color.parseColor("#FF1493")));
+					Color.parseColor("#FF1493"), 1, true, false));
             }
-            destacarPalavra(e, texto, "ret", "#FF69B4");
+            destacarPalavra(e, texto, "ret", "#FF69B4", false, true);
             // rosa
-            destacarNumeros(e, texto, "#FF1493");
+            destacarNumeros(e, texto, "#FF1493", false, true);
             // cinza
 			String[] simbs = {
 				"#", "+", "-", "%", "/", "&", "?", "!", ";", ":",
@@ -453,44 +485,44 @@ abstract public class Sintaxe {
 		@Override
 		protected void aplicarDestaques(List<EditorCodigo.Destaque> e, String texto) {
 			// azul escuro
-			destacarSimbolo(e, texto, "#include", "#3F51B5");
-			destacarSimbolo(e, texto, "#define", "#3F51B5");
-			destacarSimbolo(e, texto, "#if", "#3F51B5");
-			destacarSimbolo(e, texto, "#ifdef", "#3F51B5");
-			destacarSimbolo(e, texto, "#end", "#3F51B5");
-			destacarPalavra(e, texto, "struct", "#3F51B5");	
-			destacarPalavra(e, texto, "static", "#3F51B5");	
-			destacarPalavra(e, texto, "typedef", "#3F51B5");	
-			destacarPalavra(e, texto, "enum", "#3F51B5");	
+			destacarSimbolo(e, texto, "#include", "#3F51B5", true, true);
+			destacarSimbolo(e, texto, "#define", "#3F51B5", true, true);
+			destacarSimbolo(e, texto, "#if", "#3F51B5", true, true);
+			destacarSimbolo(e, texto, "#ifdef", "#3F51B5", true, true);
+			destacarSimbolo(e, texto, "#end", "#3F51B5", true, true);
+			destacarPalavra(e, texto, "struct", "#3F51B5", true, false);	
+			destacarPalavra(e, texto, "static", "#3F51B5", true, false);	
+			destacarPalavra(e, texto, "typedef", "#3F51B5", true, false);	
+			destacarPalavra(e, texto, "enum", "#3F51B5", true, false);	
 			// azul 
 			String[] tipos = {
                 "int", "float", "char", "byte", "void", "FILE",
                 "long", "double", "bool", "const", "size_t"
             };
-            for(String tipo : tipos) destacarPalavra(e, texto, tipo, "#64B5F6");
+            for(String tipo : tipos) destacarPalavra(e, texto, tipo, "#64B5F6", true, true);
 			// bege
-			destacarFuncoes(e, texto, "#F4A460");
+			destacarFuncoes(e, texto, "#F4A460", true, false);
             // rosa claro
-			destacarPalavra(e, texto, "if", "#FF69B4");
-			destacarPalavra(e, texto, "else", "#FF69B4");
-			destacarPalavra(e, texto, "for", "#FF69B4");
-			destacarPalavra(e, texto, "while", "#FF69B4");
-			destacarPalavra(e, texto, "switch", "#FF69B4");
-			destacarPalavra(e, texto, "case", "#FF69B4");
-			destacarPalavra(e, texto, "break", "#FF69B4");
-			destacarPalavra(e, texto, "return", "#FF69B4");
+			destacarPalavra(e, texto, "if", "#FF69B4", true, false);
+			destacarPalavra(e, texto, "else", "#FF69B4", true, false);
+			destacarPalavra(e, texto, "for", "#FF69B4", true, false);
+			destacarPalavra(e, texto, "while", "#FF69B4", true, false);
+			destacarPalavra(e, texto, "switch", "#FF69B4", true, false);
+			destacarPalavra(e, texto, "case", "#FF69B4", true, false);
+			destacarPalavra(e, texto, "break", "#FF69B4", true, false);
+			destacarPalavra(e, texto, "return", "#FF69B4", true, true);
             // rosa
-            destacarNumeros(e, texto, "#FF1493");
+            destacarNumeros(e, texto, "#FF1493", false, true);
             // cinza
 			String[] simbs = {
-				"#", "+", "-", "%", "/", "&", "?", "!", ";", ":",
+				"+", "-", "%", "/", "&", "?", "!", ";", ":",
 				"(", ")", "{", "}", "[", "]", ".", "*", ">", "<"
 			};
-            destacarComentarios(e, texto, "#9E9E9E");
-			destacarIncludes(e, texto, "#9E9E9E");
-			for(int i = 0; i < simbs.length; i++) destacarSimbolo(e, texto, simbs[i], "#9E9E9E");
+            destacarComentarios(e, texto, "#9E9E9E", false, true);
+			destacarIncludes(e, texto, "#9E9E9E", false, true);
+			for(int i = 0; i < simbs.length; i++) destacarSimbolo(e, texto, simbs[i], "#9E9E9E", true, false);
             // verde
-            destacarAspas(e, texto, "#66BB6A");
+            destacarAspas(e, texto, "#66BB6A", false, false);
 		}
 		
 		public C() {

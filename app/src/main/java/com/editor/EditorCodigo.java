@@ -25,10 +25,10 @@ public class EditorCodigo extends View {
     public int linSele;
     public int colSele;
     public int alturaLin = 50;
-    public int larguraCar = 25;
     public List<Destaque> destaques = new ArrayList<>();
     public int corTexto = Color.BLACK;
-	public Sintaxe sintaxe = null;
+	public Sintaxe sintaxe;
+	public AutoCompletar auto;
 
     public EditorCodigo(Context ctx, AttributeSet atribs) {
         super(ctx, atribs);
@@ -37,13 +37,14 @@ public class EditorCodigo extends View {
         setBackgroundColor(Color.WHITE);
 
         pincelTxt = new Paint();
-        pincelTxt.setColor(Color.BLACK);
-        pincelTxt.setTextSize(40);
-        pincelTxt.setAntiAlias(true);
+		pincelTxt.setColor(Color.BLACK);
+		pincelTxt.setTextSize(30);
+		pincelTxt.setAntiAlias(true);
+		pincelTxt.setTypeface(Typeface.MONOSPACE);
 
         pincelNums = new Paint();
         pincelNums.setColor(Color.GRAY);
-        pincelNums.setTextSize(35);
+        pincelNums.setTextSize(20);
         pincelNums.setAntiAlias(true);
 
         pincelFundoLin = new Paint();
@@ -96,65 +97,111 @@ public class EditorCodigo extends View {
     }
 
     public static class Destaque {
-        public int inicio;
-        public int fim;
-        public int cor;
+		public int inicio;
+		public int fim;
+		public int cor;
+		public int prioridade;
+		public boolean negrito;
+		public boolean italico;
 
-        public Destaque(int inicio, int fim, int cor) {
-            this.inicio = inicio;
-            this.fim = fim;
-            this.cor = cor;
-        }
-    }
+		public Destaque(int inicio, int fim, int cor, int prioridade, boolean negrito, boolean italico) {
+			this.inicio = inicio;
+			this.fim = fim;
+			this.cor = cor;
+			this.prioridade = prioridade;
+			this.negrito = negrito;
+			this.italico = italico;
+		}
+	}
 
-    public void setDestaques(List<Destaque> destaques) {
+	public void renderLinha(Canvas canvas, String lin, int inicioGlobal, int x, int y) {
+		int xAtual = x;
+		int corAtual = corTexto;
+		boolean negritoAtual = false;
+		boolean italicoAtual = false;
+		int inicio = 0;
+		// pincelTxt.setShadowLayer(2f, 2f, 2f, 0xFF000000);
+
+		for(int i = 0; i <= lin.length(); i++) {
+			int indiceGlobal = inicioGlobal + i;
+			Destaque destaqueAtual = obterDestaque(indiceGlobal);
+			int cor = destaqueAtual != null ? destaqueAtual.cor : corTexto;
+			boolean negrito = destaqueAtual != null ? destaqueAtual.negrito : false;
+			boolean italico = destaqueAtual != null ? destaqueAtual.italico : false;
+
+			if(i == lin.length() || cor != corAtual || negrito != negritoAtual || italico != italicoAtual) {
+				if(i > inicio) {
+					String seg = lin.substring(inicio, i);
+					pincelTxt.setColor(0xFF000000); // cor da borda
+					pincelTxt.setStyle(Paint.Style.STROKE);
+					pincelTxt.setStrokeWidth(1.5f); // espessura da borda
+					canvas.drawText(seg, xAtual, y, pincelTxt);
+
+					pincelTxt.setColor(corAtual);
+					pincelTxt.setStyle(Paint.Style.FILL);
+					canvas.drawText(seg, xAtual, y, pincelTxt);
+
+					Typeface tipoAtual = Typeface.MONOSPACE;
+					int estilo = Typeface.NORMAL;
+					if(negritoAtual && italicoAtual) estilo = Typeface.BOLD_ITALIC;
+					else if(negritoAtual) estilo = Typeface.BOLD;
+					else if(italicoAtual) estilo = Typeface.ITALIC;
+					
+					pincelTxt.setTypeface(Typeface.create(tipoAtual, estilo));
+
+					xAtual += pincelTxt.measureText(seg);
+				}
+				inicio = i;
+				corAtual = cor;
+				negritoAtual = negrito;
+				italicoAtual = italico;
+			}
+		}
+	}
+
+	public Destaque obterDestaque(int i) {
+		Destaque melhorDestaque = null;
+		for(Destaque destaque : destaques) {
+			if(i >= destaque.inicio && i < destaque.fim) {
+				if(melhorDestaque == null || destaque.prioridade > melhorDestaque.prioridade) melhorDestaque = destaque;
+			}
+		}
+		return melhorDestaque;
+	}
+	
+	public float medirAteColuna(String linha, int col) {
+		return pincelTxt.measureText(linha.substring(0, Math.min(col, linha.length())));
+	}
+
+    public void defDestaques(List<Destaque> destaques) {
         this.destaques = destaques;
         invalidate();
     }
 
     @Override
-    protected void onDraw(Canvas canvas) {
-        super.onDraw(canvas);
-        renderNumLins(canvas);
+	protected void onDraw(Canvas canvas) {
+		super.onDraw(canvas);
+		renderNumLins(canvas);
 
-        String textoCompleto = conteudo.toString();
-        String[] lins = textoCompleto.split("\n", -1);
+		String textoCompleto = conteudo.toString();
+		String[] lins = textoCompleto.split("\n", -1);
 
-        for(int i = 0; i < lins.length; i++) {
-            int startLineIndex = obterIndice(i, lins);
-            int y = i * alturaLin - posX;
-            if(y >= -alturaLin && y <= getHeight()) desenharLinha(canvas, lins[i], startLineIndex, 60, y + alturaLin - 10);
-        }
-        int cursorX = colSele * larguraCar + 60;
-        int cursorY = linSele * alturaLin - posX;
-        canvas.drawLine(cursorX, cursorY, cursorX, cursorY + alturaLin, pincelTxt);
-    }
+		for(int i = 0; i < lins.length; i++) {
+			int inicioLin = obterIndice(i, lins);
+			int y = i * alturaLin - posX;
+			if(y >= -alturaLin && y <= getHeight()) renderLinha(canvas, lins[i], inicioLin, 60, y + alturaLin - 10);
+		}
+		String linhaAtual = lins[linSele];
+		int cursorX = (int) medirAteColuna(linhaAtual, colSele) + 60;
+		float baselin = linSele * alturaLin - posX + (alturaLin - 3);
+		float cursorTopo = baselin - pincelTxt.getTextSize();
+		canvas.drawLine(cursorX, cursorTopo, cursorX, baselin, pincelTxt);
+	}
 
-    public int obterIndice(int linNum, String[] lines) {
+    public int obterIndice(int linNum, String[] lins) {
         int idc = 0;
-        for(int i = 0; i < linNum; i++) idc += lines[i].length() + 1;
+        for(int i = 0; i < linNum; i++) idc += lins[i].length() + 1;
         return idc;
-    }
-
-    private void desenharLinha(Canvas canvas, String lin, int inicioGlobal, int x, int y) {
-        int xAtual = x;
-        int corAtual = corTexto;
-        int inicio = 0;
-
-        for(int i = 0; i <= lin.length(); i++) {
-            int indiceGlobal = inicioGlobal + i;
-            int cor = cor(indiceGlobal);
-            if(i == lin.length() || cor != corAtual) {
-                if(i > inicio) {
-                    String seg = lin.substring(inicio, i);
-                    pincelTxt.setColor(corAtual);
-                    canvas.drawText(seg, xAtual, y, pincelTxt);
-                    xAtual += pincelTxt.measureText(seg);
-                }
-                inicio = i;
-                corAtual = cor;
-            }
-        }
     }
 
     public int cor(int i) {
@@ -175,6 +222,7 @@ public class EditorCodigo extends View {
 		attCursorPos(c);
 		invalidate();
 		if(sintaxe != null) sintaxe.att();
+		if(auto != null) auto.att(conteudo, pos, 0, 1);
 	}
 
     public void rmCaractere() {
@@ -195,6 +243,7 @@ public class EditorCodigo extends View {
             }
             invalidate();
 			if(sintaxe != null) sintaxe.att();
+			if(auto != null) auto.att(conteudo, pos, 1, 0);
         }
     }
 
@@ -220,7 +269,18 @@ public class EditorCodigo extends View {
             if(linSele >= lins.length) linSele = lins.length - 1;
             if(linSele < 0) linSele = 0;
             int x = (int) e.getX() - 60;
-            colSele = Math.max(0, Math.min(lins[linSele].length(), x / larguraCar));
+			String linha = lins[linSele];
+			colSele = 0;
+			float acumulado = 0;
+			for(int i = 0; i < linha.length(); i++) {
+				float larguraChar = pincelTxt.measureText(String.valueOf(linha.charAt(i)));
+				if(acumulado + larguraChar / 2 >= x) {
+					colSele = i;
+					break;
+				}
+				acumulado += larguraChar;
+				colSele = i + 1;
+			}
             invalidate();
             return true;
         }
@@ -252,6 +312,12 @@ public class EditorCodigo extends View {
             colSele = lins[linSele].length();
         }
         ajustarRolagem();
+    }
+	
+	public void ajustarRolagem(int x, int y) {
+        if(x < posX) posX = y;
+        else if(x + alturaLin > posX + getHeight()) posX = y + alturaLin - getHeight();
+        invalidate();
     }
 
     public void ajustarRolagem() {
@@ -298,6 +364,25 @@ public class EditorCodigo extends View {
         }
         ajustarRolagem();
     }
+	
+	public void defSelecao(int pos) {
+		String texto = conteudo.toString();
+		int lin = 0;
+		int col = 0;
+		int atual = 0;
+		String[] lins = texto.split("\n", -1);
+		for(lin = 0; lin < lins.length; lin++) {
+			int tam = lins[lin].length();
+			if(atual + tam >= pos) {
+				col = pos - atual;
+				break;
+			}
+			atual += tam + 1; // +1 para o \n
+		}
+		linSele = lin;
+		colSele = col;
+		invalidate();
+	}
 
     public void defTexto(String novoTxt) {
         conteudo = Editable.Factory.getInstance().newEditable(novoTxt);
@@ -306,6 +391,14 @@ public class EditorCodigo extends View {
         invalidate();
 		if(sintaxe != null) sintaxe.att();
     }
+	
+	public int obterCursorY() {
+		return linSele * alturaLin - posX;
+	}
+	
+	public int obterCursorX() {
+		return (int) medirAteColuna(conteudo.toString().split("\n", - 1)[linSele], colSele) + 60;
+	}
 
     public String obterTexto() {
         return conteudo.toString();
